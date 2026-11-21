@@ -7,7 +7,7 @@ import javax.net.ssl.SSLSocketFactory
 
 /**
  * Transporte RTMP experimental. Conecta e faz handshake em thread de trabalho,
- * mas NÃO executa publish nem envia vídeo/áudio.
+ * pode negociar publish e enviar mídia codificada somente em testes controlados.
  *
  * Nunca chamar na thread principal do Android. Usar servidor de teste.
  */
@@ -190,10 +190,19 @@ internal class RtmpTestTransport private constructor(
      * Nunca inicia o envio de vídeo/áudio. Não chamar na thread de UI.
      * O leitor simplificado ainda não suporta servidores com chunks intercalados.
      */
-    fun requestPublishForTest(destination: RtmpDestination): Boolean {
+    fun requestPublishForTest(destination: RtmpDestination): Boolean =
+        requestPublishStreamIdForTest(destination) != null
+
+    /**
+     * Retorna o ID confirmado para que a ponte de mídia use exatamente
+     * a sessão publicada. Null significa publicação recusada.
+     * Somente para servidor de testes autorizado.
+     */
+    fun requestPublishStreamIdForTest(destination: RtmpDestination): Int? {
+        publishedStreamId = null
         val streamId = negotiateStreamForTest(destination)
         sendPublishCommandForTest(destination, streamId)
-        return readPublishConfirmationForTest(streamId)
+        return if (readPublishConfirmationForTest(streamId)) streamId else null
     }
 
     /**
