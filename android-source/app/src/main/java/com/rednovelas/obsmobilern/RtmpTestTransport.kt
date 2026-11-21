@@ -66,8 +66,7 @@ internal class RtmpTestTransport private constructor(
             timestampMs = 0,
             payload = payload
         )
-        socket.getOutputStream().write(message)
-        socket.getOutputStream().flush()
+        writePacket(message)
     }
 
 
@@ -118,8 +117,7 @@ internal class RtmpTestTransport private constructor(
             timestampMs = 0,
             payload = RtmpPublishCommands.createStream()
         )
-        socket.getOutputStream().write(bytes)
-        socket.getOutputStream().flush()
+        writePacket(bytes)
     }
 
     /**
@@ -161,8 +159,7 @@ internal class RtmpTestTransport private constructor(
             timestampMs = 0,
             payload = RtmpPublishCommands.publish(destination.streamName)
         )
-        socket.getOutputStream().write(message)
-        socket.getOutputStream().flush()
+        writePacket(message)
     }
 
     /**
@@ -241,8 +238,7 @@ internal class RtmpTestTransport private constructor(
                             timestampMs = 0,
                             payload = response
                         )
-                        socket.getOutputStream().write(bytes)
-                        socket.getOutputStream().flush()
+                        writePacket(bytes)
                     }
                 }
                 20 -> return message
@@ -281,6 +277,10 @@ internal class RtmpTestTransport private constructor(
             ((packet[10].toInt() and 255) shl 16) or
             ((packet[11].toInt() and 255) shl 24)
         require(id == streamId) { "Pacote de outra sessão RTMP" }
+        writePacket(packet)
+    }
+
+    private fun writePacket(packet: ByteArray) {
         synchronized(writeLock) {
             socket.getOutputStream().write(packet)
             socket.getOutputStream().flush()
