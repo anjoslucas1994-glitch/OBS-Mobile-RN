@@ -14,6 +14,8 @@ import javax.net.ssl.SSLSocketFactory
 internal class RtmpTestTransport private constructor(
     private val socket: Socket
 ) : Closeable {
+    private var incomingChunkSize = 128
+
     companion object {
         fun connect(destination: RtmpDestination, timeoutMs: Int = 5000): RtmpTestTransport {
             require(timeoutMs in 1000..30000)
@@ -74,7 +76,7 @@ internal class RtmpTestTransport private constructor(
      */
     fun readConnectResponseForTest(): RtmpCommandResponse.Response {
         check(!socket.isClosed) { "Conexão fechada" }
-        val message = RtmpSimpleChunkReader.read(socket.getInputStream())
+        val message = readNextCommandForTest()
         require(message.typeId == 20) {
             "Resposta recebida não é comando AMF0; leitor RTMP completo ainda necessário"
         }
@@ -131,7 +133,7 @@ internal class RtmpTestTransport private constructor(
             "Servidor RTMP recusou connect"
         }
         sendCreateStreamCommand()
-        val message = RtmpSimpleChunkReader.read(socket.getInputStream())
+        val message = readNextCommandForTest()
         require(message.typeId == 20) {
             "Resposta createStream não é AMF0; leitor RTMP completo necessário"
         }
@@ -193,6 +195,35 @@ internal class RtmpTestTransport private constructor(
         val streamId = negotiateStreamForTest(destination)
         sendPublishCommandForTest(destination, streamId)
         return readPublishConfirmationForTest(streamId)
+    }
+
+    /**
+     * Ignora mensagens de controle simples enviadas antes da resposta AMF0.
+     * Não suporta interleaving de chunks nem cabeçalhos fmt=1/2; limita a
+     * quantidade de mensagens para evitar espera ilimitada.
+     */
+    private fun readNextCommandForTest(): RtmpSimpleChunkReader.Message {
+        repeat(16) {
+            val message = RtmpSimpleChunkReader.read(
+                socket.getInputStream(), chunkSize = incomingChunkSize
+            )
+            when (message.typeId) {
+                1 -> {
+                    require(message.payload.size == 4) { "Set Chunk Size inválido" }
+                    val bytes = message.payload
+                    val size = ((bytes[0].toInt() and 0x7f) shl 24) or
+                        ((bytes[1].toInt() and 255) shl 16) or
+                        ((bytes[2].toInt() and 255) shl 8) or
+                        (bytes[3].toInt() and 255)
+                    require(size in 1..(1024 * 1024)) { "Chunk Size fora do limite" }
+                    incomingChunkSize = size
+                }
+                5, 6 -> Unit // Window Acknowledgement Size / Set Peer Bandwidth
+                20 -> return message
+                else -> error("Tipo de mensagem RTMP ainda não suportado: ${message.typeId}")
+            }
+        }
+        error("Servidor enviou mensagens de controle demais")
     }
 
     override fun close() {
