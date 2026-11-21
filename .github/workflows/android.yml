@@ -29,6 +29,31 @@ jobs:
           test -f projeto/OBS_Mobile_RN/settings.gradle.kts
           test -f projeto/OBS_Mobile_RN/app/build.gradle.kts
 
+      - name: Ajustar compatibilidade Java e Kotlin
+        working-directory: projeto/OBS_Mobile_RN
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          block = """
+          android {
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }
+          }
+          tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+              kotlinOptions {
+                  jvmTarget = "17"
+              }
+          }
+          """
+          if "sourceCompatibility = JavaVersion.VERSION_17" not in s:
+              s = s.replace("dependencies {", block + "\ndependencies {")
+              p.write_text(s)
+          PY
+
       - name: Configurar Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
