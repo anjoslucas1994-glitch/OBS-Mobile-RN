@@ -22,7 +22,7 @@ internal data class RtmpDestination(
             val path = match.groupValues[3].trim('/')
             val segments = path.split('/').filter { it.isNotBlank() }
             require(segments.isNotEmpty()) { "Informe o nome da aplicação RTMP no servidor" }
-            require(segments.size <= 2) { "Informe o endereço do servidor sem a chave" }
+            require(segments.size == 1) { "Informe o endereço do servidor sem a chave" }
             require(key.isNotBlank()) { "Chave de transmissão não informada" }
             require(!key.contains('/') && !key.contains('?') && !key.contains('#')) {
                 "A chave deve ser informada separadamente, sem barras ou parâmetros"
