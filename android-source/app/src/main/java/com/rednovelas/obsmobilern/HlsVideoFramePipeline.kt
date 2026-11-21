@@ -27,6 +27,7 @@ internal class HlsVideoFramePipeline(
     private var encoder: CompositedVideoEncoder? = null
     private var running = false
     private var busy = false
+    private var previewFailures = 0
     private var firstFrameTimeNs = -1L
     private var lastTimestampNs = -1L
     private var logo: Bitmap? = null
@@ -83,10 +84,17 @@ internal class HlsVideoFramePipeline(
             val frame = result.getOrNull()
             if (frame == null) {
                 busy = false
-                onError(result.exceptionOrNull() ?: IllegalStateException("Captura indisponível"))
-                close()
+                // A superfície do player pode não estar pronta nos primeiros
+                // segundos de buffering. Dar tempo ao HLS para iniciar.
+                if (++previewFailures <= 20) {
+                    main.postDelayed({ if (running) scheduleNext() }, 250L)
+                } else {
+                    onError(result.exceptionOrNull() ?: IllegalStateException("Captura indisponível"))
+                    close()
+                }
                 return@request
             }
+            previewFailures = 0
             val text = lowerThird
             val scroll = ticker
             val currentLogo = logo
