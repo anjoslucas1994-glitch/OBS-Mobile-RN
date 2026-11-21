@@ -246,6 +246,17 @@ internal class RtmpTestTransport private constructor(
                     }
                 }
                 20 -> return message
+                17 -> {
+                    // AMF3 command frequentemente carrega AMF0 após marcador 0.
+                    require(message.payload.isNotEmpty() && message.payload[0] == 0.toByte()) {
+                        "Comando AMF3 RTMP não suportado"
+                    }
+                    return message.copy(
+                        typeId = 20,
+                        payload = message.payload.copyOfRange(1, message.payload.size)
+                    )
+                }
+                18, 15 -> Unit // Metadata AMF0/AMF3 não é confirmação de publicação.
                 else -> error("Tipo de mensagem RTMP ainda não suportado: ${message.typeId}")
             }
         }
