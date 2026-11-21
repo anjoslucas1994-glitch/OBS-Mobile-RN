@@ -20,6 +20,9 @@ class MainActivity : AppCompatActivity() {
     private var encoderDiagnostic: HlsVideoFramePipeline? = null
     private var clipPipeline: HlsVideoFramePipeline? = null
     private var clipRecorder: LocalVideoClipRecorder? = null
+    private var rtmpVideoTestSession: HlsRtmpVideoSession? = null
+    private var rtmpVideoTestTransport: RtmpTestTransport? = null
+    private var rtmpVideoTestRunning = false
     private var encodedDiagnosticFrames = 0
     private lateinit var playerView: PlayerView
     private lateinit var sourceInput: EditText
@@ -384,6 +387,23 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(publishTestButton)
 
+        val videoPublishTestButton = button("TESTAR VÍDEO RTMP NO ZCAST (5S, SEM ÁUDIO)")
+        videoPublishTestButton.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Enviar vídeo para o canal de testes?")
+                .setMessage(
+                    "O aplicativo enviará 5 segundos de vídeo com logo e letreiro ao SEGUNDO canal ZCast. " +
+                    "Não haverá áudio. Esta operação usa sua chave RTMP e pode ativar temporariamente o canal de teste. " +
+                    "Não utiliza o RTMP da Rede Novelas principal."
+                )
+                .setNegativeButton("CANCELAR", null)
+                .setPositiveButton("ENVIAR TESTE") { _, _ ->
+                    testRtmpVideoFiveSeconds(videoPublishTestButton)
+                }
+                .show()
+        }
+        root.addView(videoPublishTestButton)
+
         val liveTitle = TextView(this).apply {
             text = "CONTROLE DE TRANSMISSÃO"
             setTextColor(gold)
@@ -406,7 +426,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(stopLiveButton)
 
         val liveInfo = TextView(this).apply {
-            text = "SAÍDA RTMP INDISPONÍVEL NESTE TESTE. Os botões serão ativados somente após integrar e validar o codificador H.264/AAC, a composição dos gráficos e o envio RTMP. Não altera a transmissão atual."
+            text = "TRANSMISSÃO CONTÍNUA INDISPONÍVEL. O teste de 5 segundos envia somente vídeo ao segundo canal ZCast; o áudio real ainda não está integrado."
             textSize = 12f
             setTextColor(Color.rgb(90, 60, 20))
             setPadding(dp(8), dp(8), dp(8), dp(8))
@@ -414,7 +434,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(liveInfo)
 
         val warning = TextView(this).apply {
-            text = "IMPORTANTE: esta versão organiza os dados de saída, mas ainda NÃO envia vídeo por RTMP. " +
+            text = "IMPORTANTE: somente o botão de teste envia vídeo por RTMP durante 5 segundos ao canal de testes ZCast. " +
                 "A próxima etapa é integrar codificação H.264/AAC e composição real dos gráficos. " +
                 "Não use a mesma entrada M3U8 e a mesma saída do canal sem confirmar com a Vox: isso pode criar um loop ou interromper a transmissão."
             textSize = 11f
@@ -425,7 +445,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.11 • TESTE DE AUTORIZAÇÃO RTMP • REDE NOVELAS"
+            text = "VERSÃO 0.12 • TESTE RTMP DE VÍDEO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -630,6 +650,142 @@ class MainActivity : AppCompatActivity() {
         }.start()
     }
 
+    /**
+     * Diagnóstico de envio RTMP por 5 segundos SOMENTE no segundo canal ZCast.
+     * Publica quadros H.264 compostos com logo/textos. Ainda não envia áudio.
+     */
+    private fun testRtmpVideoFiveSeconds(button: Button) {
+        if (rtmpVideoTestRunning || encoderDiagnostic != null || clipPipeline != null ||
+            player?.playbackState != Player.STATE_READY
+        ) {
+            status.text = "TESTE RTMP: finalize outros testes e carregue a prévia primeiro."
+            return
+        }
+        val server = rtmpServerInput.text.toString().trim()
+        val key = streamKeyInput.text.toString().trim()
+        val source = sourceInput.text.toString().trim()
+        if (!server.equals("rtmp://srv2.zcast.com.br:1935/redenovelas", ignoreCase = true)) {
+            status.text = "TESTE RTMP: saída permitida somente no segundo canal ZCast."
+            return
+        }
+        if (key.isBlank()) {
+            status.text = "TESTE RTMP: informe a chave do segundo canal."
+            return
+        }
+        when (val guard = StreamDestinationGuard.inspect(source, server, key)) {
+            is StreamDestinationGuard.Result.Blocked -> {
+                status.text = "TESTE RTMP BLOQUEADO: ${guard.reason}"
+                return
+            }
+            StreamDestinationGuard.Result.AllowedForTesting -> Unit
+        }
+        val destination = try {
+            RtmpDestination.parse(server, key)
+        } catch (error: IllegalArgumentException) {
+            status.text = "TESTE RTMP: dados de saída inválidos."
+            return
+        }
+        rtmpVideoTestRunning = true
+        button.isEnabled = false
+        status.text = "TESTE RTMP: autorizando segundo canal..."
+        Thread {
+            val result = runCatching {
+                val transport = RtmpTestTransport.connect(destination, timeoutMs = 5000)
+                try {
+                    val id = transport.requestPublishStreamIdForTest(destination)
+                        ?: error("Publicação não autorizada no servidor de teste")
+                    Pair(transport, id)
+                } catch (error: Exception) {
+                    transport.close()
+                    throw error
+                }
+            }
+            runOnUiThread {
+                if (!rtmpVideoTestRunning || isFinishing || isDestroyed) {
+                    result.getOrNull()?.first?.close()
+                    rtmpVideoTestRunning = false
+                    return@runOnUiThread
+                }
+                result.fold(
+                    onSuccess = { (transport, streamId) ->
+                        rtmpVideoTestTransport = transport
+                        try {
+                            val session = HlsRtmpVideoSession(
+                                playerView = playerView,
+                                transport = transport,
+                                publishedStreamId = streamId,
+                                bitrate = 1_600_000,
+                                onError = { error ->
+                                    if (rtmpVideoTestSession != null) {
+                                        stopRtmpVideoTest(button,
+                                            "TESTE RTMP: falha na codificação ou envio. Sessão encerrada.")
+                                    }
+                                }
+                            )
+                            val bitmap = logoOverlay.drawable?.let { drawable ->
+                                val w = drawable.intrinsicWidth.coerceIn(1, 512)
+                                val h = drawable.intrinsicHeight.coerceIn(1, 512)
+                                android.graphics.Bitmap.createBitmap(
+                                    w, h, android.graphics.Bitmap.Config.ARGB_8888
+                                ).also { out ->
+                                    drawable.setBounds(0, 0, w, h)
+                                    drawable.draw(android.graphics.Canvas(out))
+                                }
+                            }
+                            rtmpVideoTestSession = session
+                            session.start(
+                                bitmap, overlayLabel.text.toString(), tickerLabel.text.toString()
+                            )
+                            status.text = "TESTE RTMP: enviando 5 segundos de vídeo SEM ÁUDIO..."
+                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                                if (rtmpVideoTestSession === session) {
+                                    stopRtmpVideoTest(
+                                        button,
+                                        "TESTE RTMP: envio de vídeo de 5s encerrado. Verifique o SEGUNDO canal ZCast."
+                                    )
+                                }
+                            }, 5000L)
+                        } catch (error: Exception) {
+                            rtmpVideoTestSession?.close()
+                            rtmpVideoTestSession = null
+                            rtmpVideoTestTransport?.close()
+                            rtmpVideoTestTransport = null
+                            rtmpVideoTestRunning = false
+                            button.isEnabled = true
+                            status.text = "TESTE RTMP: falha ao iniciar vídeo, sessão fechada."
+                        }
+                    },
+                    onFailure = {
+                        rtmpVideoTestRunning = false
+                        button.isEnabled = true
+                        status.text = "TESTE RTMP: publicação não concluída no ZCast."
+                    }
+                )
+            }
+        }.start()
+    }
+
+    private fun stopRtmpVideoTest(button: Button, message: String) {
+        val session = rtmpVideoTestSession
+        rtmpVideoTestSession = null
+        if (session == null) {
+            rtmpVideoTestTransport?.close()
+            rtmpVideoTestTransport = null
+            rtmpVideoTestRunning = false
+            button.isEnabled = true
+            return
+        }
+        session.stopWhenClosed {
+            rtmpVideoTestTransport?.close()
+            rtmpVideoTestTransport = null
+            rtmpVideoTestRunning = false
+            if (!isFinishing && !isDestroyed) {
+                button.isEnabled = true
+                status.text = message
+            }
+        }
+    }
+
     private fun validateRtmpSettings() {
         val server = rtmpServerInput.text.toString().trim()
         val key = streamKeyInput.text.toString().trim()
@@ -729,6 +885,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        rtmpVideoTestSession?.close()
+        rtmpVideoTestSession = null
+        rtmpVideoTestTransport?.close()
+        rtmpVideoTestTransport = null
+        rtmpVideoTestRunning = false
         clipPipeline?.close()
         clipPipeline = null
         clipRecorder?.discard()
@@ -740,6 +901,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        rtmpVideoTestSession?.close()
+        rtmpVideoTestSession = null
+        rtmpVideoTestTransport?.close()
+        rtmpVideoTestTransport = null
+        rtmpVideoTestRunning = false
         clipPipeline?.close()
         clipPipeline = null
         clipRecorder?.discard()
