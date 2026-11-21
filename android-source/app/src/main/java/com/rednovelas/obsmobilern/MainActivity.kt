@@ -235,6 +235,23 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(encoderTestButton)
 
+        val aacTestButton = button("TESTAR CODIFICAÇÃO AAC (ÁUDIO SINTÉTICO)")
+        aacTestButton.setOnClickListener {
+            aacTestButton.isEnabled = false
+            status.text = "TESTE AAC: codificando sinal de teste local, sem RTMP..."
+            Thread {
+                val result = runCatching { AacEncoderSelfTest.run() }
+                runOnUiThread {
+                    aacTestButton.isEnabled = true
+                    status.text = result.fold(
+                        onSuccess = { "TESTE AAC: ${it.packets} quadros, ${it.totalBytes} bytes codificados. Sem transmissão." },
+                        onFailure = { "TESTE AAC FALHOU: ${it.message}" }
+                    )
+                }
+            }.start()
+        }
+        root.addView(aacTestButton)
+
         val clipTestButton = button("GRAVAR MP4 COM LOGO E TEXTO (5S, SEM ÁUDIO)")
         clipTestButton.setOnClickListener { recordGraphicTest() }
         root.addView(clipTestButton)
@@ -387,7 +404,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.7 • GRAVAÇÃO MP4 DE TESTE • REDE NOVELAS"
+            text = "VERSÃO 0.8 • TESTE AAC E MP4 • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
