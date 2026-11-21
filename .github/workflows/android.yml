@@ -99,6 +99,10 @@ jobs:
                   s = s.replace('    <uses-permission android:name="android.permission.INTERNET" />',
                                 '    <uses-permission android:name="android.permission.INTERNET" />\\n' + permission)
           manifest.write_text(s)
+          properties = Path("gradle.properties")
+          ps = properties.read_text()
+          ps += "\norg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=768m\norg.gradle.workers.max=2\n"
+          properties.write_text(ps)
           PY
 
       - name: Configurar Gradle 8.9
@@ -108,7 +112,7 @@ jobs:
 
       - name: Compilar APK de depuração
         working-directory: projeto/OBS_Mobile_RN
-        run: gradle assembleDebug
+        run: gradle --no-daemon --max-workers=2 assembleDebug
 
       - name: Publicar APK para download
         uses: actions/upload-artifact@v4
