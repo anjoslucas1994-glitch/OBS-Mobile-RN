@@ -40,6 +40,25 @@ internal class RtmpTestTransport private constructor(
         }
     }
 
+
+    /**
+     * Envia apenas o comando AMF0 connect.
+     * Não executa publish nem inicia transmissão.
+     */
+    fun sendConnectCommand(destination: RtmpDestination) {
+        check(!socket.isClosed) { "Conexão fechada" }
+        val payload = RtmpPublishCommands.connect(destination.app, destination.tcUrl)
+        val message = RtmpChunkWriter.encode(
+            chunkStreamId = 3,
+            messageStreamId = 0,
+            messageTypeId = 20,
+            timestampMs = 0,
+            payload = payload
+        )
+        socket.getOutputStream().write(message)
+        socket.getOutputStream().flush()
+    }
+
     override fun close() {
         socket.close()
     }
