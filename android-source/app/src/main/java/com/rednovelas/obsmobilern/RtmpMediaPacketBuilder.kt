@@ -42,6 +42,13 @@ internal class RtmpMediaPacketBuilder(
         RtmpChunkWriter.encode(6, messageStreamId, 9, timestampMs(presentationTimeUs),
             FlvPacketizer.avcFrame(avccSample, keyframe), chunkSize)
 
+    /**
+     * Aceita quadros H.264 Annex-B do codificador Android e os transforma
+     * em AVCC antes do empacotamento FLV/RTMP.
+     */
+    fun videoAnnexBSample(sample: ByteBuffer, keyframe: Boolean, presentationTimeUs: Long): ByteArray =
+        videoSample(H264NalConverter.annexBToAvcc(sample), keyframe, presentationTimeUs)
+
     fun audioSample(rawAac: ByteBuffer, presentationTimeUs: Long): ByteArray =
         RtmpChunkWriter.encode(4, messageStreamId, 8, timestampMs(presentationTimeUs),
             FlvPacketizer.aacFrame(rawAac), chunkSize)
