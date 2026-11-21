@@ -144,6 +144,10 @@ class MainActivity : AppCompatActivity() {
         val captureTestButton = button("TESTAR CAPTURA DO VÍDEO")
         captureTestButton.setOnClickListener {
             status.text = "PRÉVIA: verificando captura de quadro..."
+            if (player?.playbackState != Player.STATE_READY) {
+                status.text = "PRÉVIA: aguarde o vídeo carregar antes do teste."
+                return@setOnClickListener
+            }
             PlayerFrameCapture.request(
                 playerView,
                 320,
