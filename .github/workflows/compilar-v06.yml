@@ -26,6 +26,15 @@ jobs:
       - name: Compilar APK de teste
         working-directory: android-source
         run: gradle testDebugUnitTest assembleDebug
+      - name: Publicar relatório de testes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OBS-Mobile-RN-v06-relatorios
+          path: |
+            android-source/app/build/test-results/testDebugUnitTest/
+            android-source/app/build/reports/tests/testDebugUnitTest/
+          if-no-files-found: warn
       - uses: actions/upload-artifact@v4
         with:
           name: OBS-Mobile-RN-v06-teste
