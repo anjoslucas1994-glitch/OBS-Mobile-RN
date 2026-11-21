@@ -51,7 +51,14 @@ internal class HlsVideoFramePipeline(
                     startedEncoder.close()
                 }
             } catch (error: Throwable) {
-                main.post { onError(error); close() }
+                main.post {
+                    if (running) {
+                        onError(error)
+                        close()
+                    } else {
+                        workerThread.quitSafely()
+                    }
+                }
             }
         }
     }
