@@ -29,7 +29,8 @@ internal object H264NalConverter {
             var end = begin
             while (end < data.size && startCodeLength(end) == 0) end++
             // Annex-B permite zeros de preenchimento após a última NAL.
-            if (end == data.size) {
+            val lastNal = end == data.size
+            if (lastNal) {
                 while (end > begin && data[end - 1] == 0.toByte()) end--
             }
             require(end > begin) { "NAL H.264 vazia" }
@@ -39,7 +40,7 @@ internal object H264NalConverter {
             out.write(length ushr 8 and 255)
             out.write(length and 255)
             out.write(data, begin, length)
-            pos = end
+            pos = if (lastNal) data.size else end
         }
         require(out.size() > 0) { "Amostra H.264 vazia" }
         return ByteBuffer.wrap(out.toByteArray())
