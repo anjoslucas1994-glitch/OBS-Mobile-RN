@@ -230,6 +230,35 @@ class MainActivity : AppCompatActivity() {
         outputButton.setOnClickListener { validateRtmpSettings() }
         root.addView(outputButton)
 
+        val liveTitle = TextView(this).apply {
+            text = "CONTROLE DE TRANSMISSÃO"
+            setTextColor(gold)
+            textSize = 14f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, dp(12), 0, dp(4))
+        }
+        root.addView(liveTitle)
+
+        val startLiveButton = button("INICIAR TRANSMISSÃO AO VIVO").apply {
+            isEnabled = false
+            alpha = 0.5f
+        }
+        root.addView(startLiveButton)
+
+        val stopLiveButton = button("PARAR TRANSMISSÃO").apply {
+            isEnabled = false
+            alpha = 0.5f
+        }
+        root.addView(stopLiveButton)
+
+        val liveInfo = TextView(this).apply {
+            text = "SAÍDA RTMP INDISPONÍVEL NESTE TESTE. Os botões serão ativados somente após integrar e validar o codificador H.264/AAC, a composição dos gráficos e o envio RTMP. Não altera a transmissão atual."
+            textSize = 12f
+            setTextColor(Color.rgb(90, 60, 20))
+            setPadding(dp(8), dp(8), dp(8), dp(8))
+        }
+        root.addView(liveInfo)
+
         val warning = TextView(this).apply {
             text = "IMPORTANTE: esta versão organiza os dados de saída, mas ainda NÃO envia vídeo por RTMP. " +
                 "A próxima etapa é integrar codificação H.264/AAC e composição real dos gráficos. " +
@@ -242,7 +271,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.4 • PRÉVIA GRÁFICA • REDE NOVELAS"
+            text = "VERSÃO 0.5 • CONTROLES EM DESENVOLVIMENTO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
