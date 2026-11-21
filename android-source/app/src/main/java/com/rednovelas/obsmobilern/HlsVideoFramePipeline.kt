@@ -41,8 +41,14 @@ internal class HlsVideoFramePipeline(
         worker = Handler(workerThread.looper)
         worker.post {
             try {
-                encoder = CompositedVideoEncoder(width, height, bitrate, fps).also { it.start() }
-                main.post { if (running) scheduleNext() }
+                val startedEncoder = CompositedVideoEncoder(width, height, bitrate, fps)
+                startedEncoder.start()
+                if (running) {
+                    encoder = startedEncoder
+                    main.post { if (running) scheduleNext() }
+                } else {
+                    startedEncoder.close()
+                }
             } catch (error: Throwable) {
                 main.post { onError(error); close() }
             }
@@ -107,9 +113,12 @@ internal class HlsVideoFramePipeline(
         running = false
         main.removeCallbacksAndMessages(null)
         worker.post {
-            encoder?.close()
-            encoder = null
-            workerThread.quitSafely()
+            try {
+                encoder?.close()
+                encoder = null
+            } finally {
+                workerThread.quitSafely()
+            }
         }
     }
 }
