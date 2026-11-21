@@ -14,7 +14,7 @@ import javax.net.ssl.SSLSocketFactory
 internal class RtmpTestTransport private constructor(
     private val socket: Socket
 ) : Closeable {
-    private var incomingChunkSize = 128
+    private val chunkReader = RtmpChunkStreamReader(socket.getInputStream())
     private var publishedStreamId: Int? = null
 
     companion object {
@@ -212,9 +212,7 @@ internal class RtmpTestTransport private constructor(
      */
     private fun readNextCommandForTest(): RtmpSimpleChunkReader.Message {
         repeat(16) {
-            val message = RtmpSimpleChunkReader.read(
-                socket.getInputStream(), chunkSize = incomingChunkSize
-            )
+            val message = chunkReader.read()
             when (message.typeId) {
                 1 -> {
                     require(message.payload.size == 4) { "Set Chunk Size inválido" }
@@ -224,7 +222,7 @@ internal class RtmpTestTransport private constructor(
                         ((bytes[2].toInt() and 255) shl 8) or
                         (bytes[3].toInt() and 255)
                     require(size in 1..(1024 * 1024)) { "Chunk Size fora do limite" }
-                    incomingChunkSize = size
+                    chunkReader.chunkSize = size
                 }
                 3, 5, 6 -> Unit // Acknowledgement / Window / Peer Bandwidth
                 4 -> {
