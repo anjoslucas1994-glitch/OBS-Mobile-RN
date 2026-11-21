@@ -92,6 +92,13 @@ class MainActivity : AppCompatActivity() {
             }
         }
         previewFrame.addView(logoOverlay)
+        graphicPrefs.getString("logo_uri", null)?.let { saved ->
+            runCatching {
+                logoUri = Uri.parse(saved)
+                logoOverlay.setImageURI(logoUri)
+                if (logoOverlay.drawable != null) logoOverlay.visibility = View.VISIBLE
+            }
+        }
 
         tickerLabel = TextView(this).apply {
             text = ""
@@ -395,11 +402,18 @@ class MainActivity : AppCompatActivity() {
                 "Logotipo exibido na prévia. Ainda não é incorporado à saída RTMP."
             else status.text
             logoUri?.let {
-                contentResolver.takePersistableUriPermission(
-                    it, Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
+                val permissionGranted = runCatching {
+                    contentResolver.takePersistableUriPermission(
+                        it, Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                }.isSuccess
                 logoOverlay.setImageURI(it)
-                logoOverlay.visibility = View.VISIBLE
+                logoOverlay.visibility = if (logoOverlay.drawable != null) View.VISIBLE else View.GONE
+                if (permissionGranted && logoOverlay.drawable != null) {
+                    graphicPrefs.edit().putString("logo_uri", it.toString()).apply()
+                } else {
+                    status.text = "Logo disponível apenas nesta sessão ou arquivo inacessível."
+                }
             }
         }
     }
