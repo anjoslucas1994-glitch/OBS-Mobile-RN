@@ -140,6 +140,26 @@ class MainActivity : AppCompatActivity() {
         loadButton.setOnClickListener { loadPreview() }
         root.addView(loadButton)
 
+        // Diagnóstico local: verifica a captura do quadro real sem transmitir.
+        val captureTestButton = button("TESTAR CAPTURA DO VÍDEO")
+        captureTestButton.setOnClickListener {
+            status.text = "PRÉVIA: verificando captura de quadro..."
+            PlayerFrameCapture.request(
+                playerView,
+                320,
+                180,
+                android.os.Handler(android.os.Looper.getMainLooper())
+            ) { result ->
+                result.onSuccess { bitmap ->
+                    status.text = "PRÉVIA: captura de vídeo concluída (320×180)"
+                    bitmap.recycle()
+                }.onFailure { error ->
+                    status.text = "PRÉVIA: captura indisponível — ${error.message}"
+                }
+            }
+        }
+        root.addView(captureTestButton)
+
         val section = TextView(this).apply {
             text = "ELEMENTOS GRÁFICOS"
             setTextColor(gold)
