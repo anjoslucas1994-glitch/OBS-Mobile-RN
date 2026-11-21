@@ -16,6 +16,7 @@ internal class RtmpTestTransport private constructor(
 ) : Closeable {
     private val chunkReader = RtmpChunkStreamReader(socket.getInputStream())
     private var publishedStreamId: Int? = null
+    private val writeLock = Any()
 
     companion object {
         fun connect(destination: RtmpDestination, timeoutMs: Int = 5000): RtmpTestTransport {
@@ -269,8 +270,10 @@ internal class RtmpTestTransport private constructor(
             ((packet[10].toInt() and 255) shl 16) or
             ((packet[11].toInt() and 255) shl 24)
         require(id == streamId) { "Pacote de outra sessão RTMP" }
-        socket.getOutputStream().write(packet)
-        socket.getOutputStream().flush()
+        synchronized(writeLock) {
+            socket.getOutputStream().write(packet)
+            socket.getOutputStream().flush()
+        }
     }
 
     override fun close() {
