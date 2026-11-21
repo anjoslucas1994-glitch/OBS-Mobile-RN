@@ -33,8 +33,10 @@ internal class RtmpTestTransport private constructor(
                 rawSocket.connect(InetSocketAddress(host, port), timeoutMs)
                 if (scheme == "rtmps") {
                     // Passar host explícito permite SNI e validação do certificado.
-                    val tlsSocket = SSLSocketFactory.getDefault()
-                        .createSocket(rawSocket, host, port, true) as javax.net.ssl.SSLSocket
+                    val sslFactory = SSLSocketFactory.getDefault() as SSLSocketFactory
+                    val tlsSocket = sslFactory.createSocket(
+                        rawSocket, host, port, true
+                    ) as javax.net.ssl.SSLSocket
                     socket = tlsSocket
                     tlsSocket.soTimeout = timeoutMs
                     val params = tlsSocket.sslParameters
