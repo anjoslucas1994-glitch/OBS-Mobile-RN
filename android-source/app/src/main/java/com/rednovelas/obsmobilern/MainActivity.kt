@@ -192,6 +192,12 @@ class MainActivity : AppCompatActivity() {
             )
             encoderDiagnostic = diagnostic
             try {
+                // O teste usa os textos já aplicados na prévia.
+                diagnostic.updateGraphics(
+                    null,
+                    overlayLabel.text.toString(),
+                    tickerLabel.text.toString()
+                )
                 diagnostic.start()
                 status.text = "TESTE H.264: codificando localmente, sem RTMP..."
                 android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
@@ -403,6 +409,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun loadPreview() {
+        encoderDiagnostic?.close()
+        encoderDiagnostic = null
         val url = sourceInput.text.toString().trim()
         if (!url.startsWith("https://") && !url.startsWith("http://")) {
             status.text = "Informe um endereço M3U8 válido."
@@ -469,6 +477,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        encoderDiagnostic?.close()
+        encoderDiagnostic = null
         super.onStop()
         player?.pause()
     }
