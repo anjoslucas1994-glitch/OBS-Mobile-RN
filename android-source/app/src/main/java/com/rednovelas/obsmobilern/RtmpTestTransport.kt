@@ -161,6 +161,29 @@ internal class RtmpTestTransport private constructor(
         socket.getOutputStream().flush()
     }
 
+    /**
+     * Confere a resposta de publish somente no protocolo simplificado de teste.
+     * Servidores com mensagens intercaladas exigem um leitor RTMP completo.
+     * A confirmação não significa que vídeo ou áudio estejam sendo enviados.
+     */
+    fun readPublishConfirmationForTest(expectedStreamId: Int): Boolean {
+        check(!socket.isClosed) { "Conexão fechada" }
+        require(expectedStreamId > 0)
+        val message = RtmpSimpleChunkReader.read(socket.getInputStream())
+        require(message.messageStreamId == expectedStreamId) {
+            "Resposta pertence a outra sessão RTMP"
+        }
+        require(message.typeId == 20) {
+            "Resposta de publicação não é comando AMF0"
+        }
+        val code = RtmpPublishStatus.code(message.payload)
+        return when (code) {
+            "NetStream.Publish.Start" -> true
+            "NetStream.Publish.BadName", "NetStream.Publish.Denied" -> false
+            else -> false
+        }
+    }
+
     override fun close() {
         socket.close()
     }
