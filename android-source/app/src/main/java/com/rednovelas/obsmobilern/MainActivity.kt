@@ -369,6 +369,21 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(connectTestButton)
 
+        val publishTestButton = button("TESTAR AUTORIZAÇÃO RTMP NO ZCAST (SEM VÍDEO)")
+        publishTestButton.setOnClickListener {
+            AlertDialog.Builder(this)
+                .setTitle("Teste de publicação no segundo canal")
+                .setMessage(
+                    "Este teste envia a chave ao servidor RTMP ZCast e solicita publicação por poucos segundos, " +
+                    "mas NÃO envia vídeo ou áudio. Pode ativar temporariamente a sessão do canal de testes. " +
+                    "A conexão RTMP comum não é criptografada. Confirme que este é o seu SEGUNDO canal."
+                )
+                .setNegativeButton("CANCELAR", null)
+                .setPositiveButton("TESTAR") { _, _ -> testRtmpPublish(publishTestButton) }
+                .show()
+        }
+        root.addView(publishTestButton)
+
         val liveTitle = TextView(this).apply {
             text = "CONTROLE DE TRANSMISSÃO"
             setTextColor(gold)
@@ -559,6 +574,57 @@ class MainActivity : AppCompatActivity() {
                 status.text = result.fold(
                     onSuccess = { "RTMP: conexão e handshake concluídos. Nenhum vídeo, áudio ou chave enviados." },
                     onFailure = { "RTMP: falha na conexão — ${it.message ?: "sem detalhes"}" }
+                )
+            }
+        }.start()
+    }
+
+    /**
+     * Testa autorização de publicação somente no servidor ZCast secundário.
+     * Fecha o socket ao final. Não envia pacotes de áudio ou vídeo.
+     */
+    private fun testRtmpPublish(button: Button) {
+        val server = rtmpServerInput.text.toString().trim()
+        val source = sourceInput.text.toString().trim()
+        val key = streamKeyInput.text.toString().trim()
+        val allowedServer = "rtmp://srv2.zcast.com.br:1935/redenovelas"
+        if (!server.equals(allowedServer, ignoreCase = true)) {
+            status.text = "PUBLICAÇÃO: somente o segundo canal ZCast é permitido no teste."
+            return
+        }
+        when (val guard = StreamDestinationGuard.inspect(source, server, key)) {
+            is StreamDestinationGuard.Result.Blocked -> {
+                status.text = "PUBLICAÇÃO BLOQUEADA: ${guard.reason}"
+                return
+            }
+            StreamDestinationGuard.Result.AllowedForTesting -> Unit
+        }
+        val destination = try {
+            RtmpDestination.parse(server, key)
+        } catch (error: IllegalArgumentException) {
+            status.text = "PUBLICAÇÃO: ${error.message}"
+            return
+        }
+        button.isEnabled = false
+        status.text = "PUBLICAÇÃO: verificando autorização no ZCast (sem áudio/vídeo)..."
+        Thread {
+            val result = runCatching {
+                RtmpTestTransport.connect(destination, timeoutMs = 5000).use { transport ->
+                    transport.requestPublishForTest(destination)
+                }
+            }
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                button.isEnabled = true
+                status.text = result.fold(
+                    onSuccess = { accepted ->
+                        if (accepted) "PUBLICAÇÃO RTMP AUTORIZADA. Socket fechado; nenhum vídeo ou áudio enviado."
+                        else "PUBLICAÇÃO RTMP RECUSADA pelo servidor de teste."
+                    },
+                    onFailure = { error ->
+                        // Nunca exibir detalhes que possam conter a chave digitada.
+                        "PUBLICAÇÃO RTMP: falha no protocolo ou resposta. Nenhuma mídia enviada."
+                    }
                 )
             }
         }.start()
