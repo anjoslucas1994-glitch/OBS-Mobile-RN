@@ -363,6 +363,12 @@ class MainActivity : AppCompatActivity() {
         outputButton.setOnClickListener { validateRtmpSettings() }
         root.addView(outputButton)
 
+        val connectTestButton = button("TESTAR CONEXÃO RTMP (SEM TRANSMITIR)")
+        connectTestButton.setOnClickListener {
+            testRtmpHandshake(connectTestButton)
+        }
+        root.addView(connectTestButton)
+
         val liveTitle = TextView(this).apply {
             text = "CONTROLE DE TRANSMISSÃO"
             setTextColor(gold)
@@ -512,6 +518,49 @@ class MainActivity : AppCompatActivity() {
             clipPipeline = null
             status.text = "GRAVAÇÃO MP4: ${error.message}"
         }
+    }
+
+    /**
+     * Testa somente TCP/TLS + handshake RTMP. Não faz connect AMF0,
+     * createStream, publish nem envia chave, áudio ou vídeo.
+     * Somente destinos separados do canal HLS atual são aceitos.
+     */
+    private fun testRtmpHandshake(button: Button) {
+        val server = rtmpServerInput.text.toString().trim()
+        val key = streamKeyInput.text.toString().trim()
+        val source = sourceInput.text.toString().trim()
+        when (val safety = StreamDestinationGuard.inspect(source, server, key)) {
+            is StreamDestinationGuard.Result.Blocked -> {
+                AlertDialog.Builder(this)
+                    .setTitle("Teste RTMP bloqueado")
+                    .setMessage(safety.reason + "\n\nA transmissão atual não foi alterada.")
+                    .setPositiveButton("OK", null).show()
+                return
+            }
+            StreamDestinationGuard.Result.AllowedForTesting -> Unit
+        }
+        // Nenhuma credencial será transmitida neste diagnóstico.
+        val destination = try {
+            RtmpDestination.parse(server, key)
+        } catch (error: IllegalArgumentException) {
+            status.text = "RTMP: ${error.message}"
+            return
+        }
+        button.isEnabled = false
+        status.text = "RTMP: testando conexão, sem publicar..."
+        Thread {
+            val result = runCatching {
+                RtmpTestTransport.connect(destination, timeoutMs = 5000).use { }
+                true
+            }
+            runOnUiThread {
+                button.isEnabled = true
+                status.text = result.fold(
+                    onSuccess = { "RTMP: conexão e handshake concluídos. Nenhum vídeo, áudio ou chave enviados." },
+                    onFailure = { "RTMP: falha na conexão — ${it.message ?: "sem detalhes"}" }
+                )
+            }
+        }.start()
     }
 
     private fun validateRtmpSettings() {
