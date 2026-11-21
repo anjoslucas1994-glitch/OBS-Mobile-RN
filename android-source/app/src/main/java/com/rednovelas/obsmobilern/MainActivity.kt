@@ -326,7 +326,7 @@ class MainActivity : AppCompatActivity() {
             hint = "Servidor RTMP (ex.: rtmp://servidor:1935/aplicativo)"
             textSize = 13f
             setSingleLine(true)
-            setText("rtmp://stmv7.voxtvhd.com.br:1935/lucas3274")
+            setText("rtmp://srv2.zcast.com.br:1935/redenovelas")
             inputType = android.text.InputType.TYPE_CLASS_TEXT or
                 android.text.InputType.TYPE_TEXT_VARIATION_URI
         }
@@ -342,7 +342,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(streamKeyInput)
 
         val bitrateLabel = TextView(this).apply {
-            text = "Taxa de vídeo + áudio"
+            text = "Perfil planejado (vídeo + áudio; transmissão ainda indisponível)"
             setTextColor(Color.DKGRAY)
             textSize = 12f
             setPadding(0, dp(6), 0, dp(2))
@@ -353,9 +353,9 @@ class MainActivity : AppCompatActivity() {
             adapter = ArrayAdapter(
                 this@MainActivity,
                 android.R.layout.simple_spinner_dropdown_item,
-                listOf("2500 Kbps", "3500 Kbps", "4500 Kbps", "5500 Kbps", "7000 Kbps")
+                listOf("1200 Kbps", "1500 Kbps", "1900 Kbps (ZCast)", "2500 Kbps", "3500 Kbps", "7000 Kbps")
             )
-            setSelection(4)
+            setSelection(2)
         }
         root.addView(bitrateSpinner)
 
@@ -410,7 +410,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.9 • TESTE DE CONEXÃO RTMP • REDE NOVELAS"
+            text = "VERSÃO 0.10 • PERFIL ZCAST DE TESTE • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -584,7 +584,7 @@ class MainActivity : AppCompatActivity() {
                     .setMessage(
                         "Endereços: formato aceito\n" +
                         "Chave: preenchida e oculta\n" +
-                        "Taxa selecionada: $bitrate\n\n" +
+                        "Perfil de referência selecionado: $bitrate\n\n" +
                         "Esta verificação não testa a conexão, não garante ausência de loop e não transmite vídeo. " +
                         "Use um destino de teste separado."
                     )
