@@ -77,15 +77,7 @@ internal class RtmpTestTransport private constructor(
      */
     fun readConnectResponseForTest(): RtmpCommandResponse.Response {
         check(!socket.isClosed) { "Conexão fechada" }
-        val message = readNextCommandForTest()
-        require(message.typeId == 20) {
-            "Resposta recebida não é comando AMF0; leitor RTMP completo ainda necessário"
-        }
-        val response = RtmpCommandResponse.parse(message.payload)
-        require(response.transactionId == 1.0) {
-            "Resposta não corresponde ao comando connect"
-        }
-        return response
+        return readTransactionResponseForTest(1.0)
     }
 
     /**
@@ -133,15 +125,24 @@ internal class RtmpTestTransport private constructor(
             "Servidor RTMP recusou connect"
         }
         sendCreateStreamCommand()
-        val message = readNextCommandForTest()
-        require(message.typeId == 20) {
-            "Resposta createStream não é AMF0; leitor RTMP completo necessário"
-        }
-        val response = RtmpCommandResponse.parse(message.payload)
+        val response = readTransactionResponseForTest(4.0)
         check(negotiation.onCommand(response) == RtmpNegotiation.Stage.READY) {
             "Servidor RTMP não confirmou createStream"
         }
         return requireNotNull(negotiation.streamId)
+    }
+
+    /**
+     * Servidores podem enviar comandos auxiliares entre respostas de transação.
+     * Não aceitar resposta de outra transação como confirmação.
+     */
+    private fun readTransactionResponseForTest(expectedTransactionId: Double): RtmpCommandResponse.Response {
+        repeat(16) {
+            val message = readNextCommandForTest()
+            val response = RtmpCommandResponse.parse(message.payload)
+            if (response.transactionId == expectedTransactionId) return response
+        }
+        error("Resposta RTMP da transação esperada não recebida")
     }
 
     /**
