@@ -5,6 +5,13 @@ plugins {
 android {
     namespace = "com.rednovelas.obsmobilern"
     compileSdk = 35
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = "17"
+    }
     defaultConfig {
         applicationId = "com.rednovelas.obsmobilern"
         minSdk = 23
