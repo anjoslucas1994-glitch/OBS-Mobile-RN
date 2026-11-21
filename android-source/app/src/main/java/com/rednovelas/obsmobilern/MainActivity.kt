@@ -1,6 +1,7 @@
 package com.rednovelas.obsmobilern
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
@@ -47,7 +48,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val header = TextView(this).apply {
-            text = "OBS MOBILE RN\\nREDE NOVELAS"
+            text = "OBS MOBILE RN\nREDE NOVELAS"
             textSize = 23f
             setTextColor(red)
             gravity = Gravity.CENTER
@@ -241,7 +242,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.3 • CONFIGURAÇÃO RTMP • REDE NOVELAS"
+            text = "VERSÃO 0.4 • PRÉVIA GRÁFICA • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -249,6 +250,10 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(footer)
 
+        listOf(sourceInput, overlayText, tickerInput, rtmpServerInput, streamKeyInput).forEach { field ->
+            field.setTextColor(Color.rgb(35, 35, 35))
+            field.setHintTextColor(Color.rgb(105, 105, 105))
+        }
         val scroll = ScrollView(this).apply { addView(root) }
         setContentView(scroll)
     }
@@ -334,7 +339,7 @@ class MainActivity : AppCompatActivity() {
         if (requestCode == 41 && resultCode == Activity.RESULT_OK) {
             logoUri = data?.data
             status.text = if (logoUri != null)
-                "Logotipo selecionado. A composição sobre o vídeo será concluída na próxima etapa."
+                "Logotipo exibido na prévia. Ainda não é incorporado à saída RTMP."
             else status.text
             logoUri?.let {
                 contentResolver.takePersistableUriPermission(
