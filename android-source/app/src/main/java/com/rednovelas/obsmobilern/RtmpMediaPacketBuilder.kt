@@ -25,8 +25,9 @@ internal class RtmpMediaPacketBuilder(
     private fun timestampMs(presentationTimeUs: Long): Long {
         require(presentationTimeUs >= 0)
         val start = startTimeUs ?: presentationTimeUs.also { startTimeUs = it }
-        require(presentationTimeUs >= start) { "Timestamp anterior ao início da sessão" }
-        return (presentationTimeUs - start) / 1000
+        // Amostras de áudio e vídeo podem chegar fora de ordem no início.
+        // Evita timestamps negativos até o pipeline definir um relógio comum.
+        return (presentationTimeUs - start).coerceAtLeast(0L) / 1000
     }
 
     fun videoConfiguration(sps: ByteArray, pps: ByteArray): ByteArray =
