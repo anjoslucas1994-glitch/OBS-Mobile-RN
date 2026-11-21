@@ -42,6 +42,18 @@ class RtmpChunkStreamReaderTest {
         assertArrayEquals(payload, result.payload)
     }
 
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsMismatchedExtendedTimestampOnContinuation() {
+        val encoded = RtmpChunkWriter.encode(
+            3, 1, 9, 0x01000000L, ByteArray(130) { 1 }, 128
+        )
+        // Cabeçalho inicial: 12 bytes + 4 de timestamp estendido.
+        // Depois do primeiro bloco de 128 bytes, fmt=3 (1 byte) e timestamp (4 bytes).
+        val continuationTimestampOffset = 16 + 128 + 1
+        encoded[continuationTimestampOffset + 3] = 1
+        RtmpChunkStreamReader(ByteArrayInputStream(encoded)).read()
+    }
+
     @Test fun readsExtendedChunkStreamId() {
         val payload = byteArrayOf(0x33)
         // fmt=0, csid=64 (basic header 0,0), timestamp 0, size 1, type 20, stream 1.
