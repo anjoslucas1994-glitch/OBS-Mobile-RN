@@ -18,6 +18,8 @@ import androidx.media3.ui.PlayerView
 class MainActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
     private var encoderDiagnostic: HlsVideoFramePipeline? = null
+    private var clipPipeline: HlsVideoFramePipeline? = null
+    private var clipRecorder: LocalVideoClipRecorder? = null
     private var encodedDiagnosticFrames = 0
     private lateinit var playerView: PlayerView
     private lateinit var sourceInput: EditText
@@ -233,6 +235,10 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(encoderTestButton)
 
+        val clipTestButton = button("GRAVAR MP4 COM LOGO E TEXTO (5S, SEM ÁUDIO)")
+        clipTestButton.setOnClickListener { recordGraphicTest() }
+        root.addView(clipTestButton)
+
         val section = TextView(this).apply {
             text = "ELEMENTOS GRÁFICOS"
             setTextColor(gold)
@@ -381,7 +387,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.6 • CONTROLES EM DESENVOLVIMENTO • REDE NOVELAS"
+            text = "VERSÃO 0.7 • GRAVAÇÃO MP4 DE TESTE • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -395,6 +401,97 @@ class MainActivity : AppCompatActivity() {
         }
         val scroll = ScrollView(this).apply { addView(root) }
         setContentView(scroll)
+    }
+
+    /**
+     * Grava um teste local de cinco segundos com os grafismos embutidos.
+     * Não acessa a saída RTMP. Não contém áudio HLS.
+     */
+    private fun recordGraphicTest() {
+        if (clipPipeline != null || encoderDiagnostic != null) {
+            status.text = "Aguarde o teste atual terminar."
+            return
+        }
+        if (android.os.Build.VERSION.SDK_INT < 29) {
+            status.text = "Salvar MP4 na galeria requer Android 10 ou superior."
+            return
+        }
+        if (player?.playbackState != Player.STATE_READY) {
+            status.text = "Carregue e aguarde a prévia M3U8 antes de gravar."
+            return
+        }
+
+        var recording: LocalVideoClipRecorder? = null
+        try {
+            recording = LocalVideoClipRecorder.create(this)
+            val activeRecorder = recording
+            val diagnostic = HlsVideoFramePipeline(
+                playerView = playerView,
+                onError = { error ->
+                    if (clipRecorder === activeRecorder) {
+                        clipPipeline = null
+                        clipRecorder = null
+                        activeRecorder.discard()
+                        status.text = "GRAVAÇÃO MP4: ${error.message}"
+                    }
+                },
+                onVideoFormat = activeRecorder::onVideoFormat,
+                onVideoSample = activeRecorder::onVideoSample
+            )
+            val logoBitmap = logoOverlay.drawable?.let { drawable ->
+                val w = drawable.intrinsicWidth.coerceIn(1, 512)
+                val h = drawable.intrinsicHeight.coerceIn(1, 512)
+                android.graphics.Bitmap.createBitmap(
+                    w, h, android.graphics.Bitmap.Config.ARGB_8888
+                ).also { bitmap ->
+                    val canvas = android.graphics.Canvas(bitmap)
+                    drawable.setBounds(0, 0, w, h)
+                    drawable.draw(canvas)
+                }
+            }
+            diagnostic.updateGraphics(
+                logoBitmap,
+                overlayLabel.text.toString(),
+                tickerLabel.text.toString()
+            )
+            clipRecorder = activeRecorder
+            clipPipeline = diagnostic
+            diagnostic.start()
+            status.text = "GRAVAÇÃO MP4: compondo logo e textos, sem áudio e sem RTMP..."
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (clipPipeline === diagnostic && clipRecorder === activeRecorder) {
+                    diagnostic.close()
+                    clipPipeline = null
+                    clipRecorder = null
+                    try {
+                        val count = activeRecorder.finish()
+                        status.text = "MP4 SALVO: $count quadros com gráficos. Abra o vídeo na galeria."
+                        AlertDialog.Builder(this)
+                            .setTitle("Vídeo de teste salvo")
+                            .setMessage("Gravado na galeria em Filmes / OBS Mobile RN. O vídeo tem logo/textos, mas NÃO tem áudio e NÃO foi transmitido.")
+                            .setNegativeButton("OK", null)
+                            .setPositiveButton("ABRIR VÍDEO") { _, _ ->
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(activeRecorder.uri, "video/mp4")
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                runCatching { startActivity(intent) }.onFailure {
+                                    status.text = "Vídeo salvo. Abra pelo aplicativo Galeria ou Arquivos."
+                                }
+                            }
+                            .show()
+                    } catch (error: Exception) {
+                        activeRecorder.discard()
+                        status.text = "GRAVAÇÃO MP4: ${error.message}"
+                    }
+                }
+            }, 5000L)
+        } catch (error: Exception) {
+            recording?.discard()
+            clipRecorder = null
+            clipPipeline = null
+            status.text = "GRAVAÇÃO MP4: ${error.message}"
+        }
     }
 
     private fun validateRtmpSettings() {
@@ -496,6 +593,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        clipPipeline?.close()
+        clipPipeline = null
+        clipRecorder?.discard()
+        clipRecorder = null
         encoderDiagnostic?.close()
         encoderDiagnostic = null
         super.onStop()
@@ -503,6 +604,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        clipPipeline?.close()
+        clipPipeline = null
+        clipRecorder?.discard()
+        clipRecorder = null
         encoderDiagnostic?.close()
         encoderDiagnostic = null
         playerView.player = null
