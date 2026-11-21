@@ -184,6 +184,17 @@ internal class RtmpTestTransport private constructor(
         }
     }
 
+    /**
+     * Executa a negociação e solicita publicação somente em ambiente de teste.
+     * Nunca inicia o envio de vídeo/áudio. Não chamar na thread de UI.
+     * O leitor simplificado ainda não suporta servidores com chunks intercalados.
+     */
+    fun requestPublishForTest(destination: RtmpDestination): Boolean {
+        val streamId = negotiateStreamForTest(destination)
+        sendPublishCommandForTest(destination, streamId)
+        return readPublishConfirmationForTest(streamId)
+    }
+
     override fun close() {
         socket.close()
     }
