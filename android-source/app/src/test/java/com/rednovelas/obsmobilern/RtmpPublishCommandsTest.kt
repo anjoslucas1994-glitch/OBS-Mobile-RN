@@ -23,6 +23,24 @@ class RtmpPublishCommandsTest {
         assertArrayEquals(prefix, payload.copyOfRange(0, prefix.size))
     }
 
+    @Test fun publishCommandIsEncodedOnRequestedStreamId() {
+        val payload = RtmpPublishCommands.publish("test-stream")
+        val chunk = RtmpChunkWriter.encode(
+            chunkStreamId = 8,
+            messageStreamId = 7,
+            messageTypeId = 20,
+            timestampMs = 0,
+            payload = payload
+        )
+        // RTMP fmt=0 header: chunk stream, timestamp, size, type, streamId LE.
+        assertTrue(chunk.size > 12)
+        assertTrue((chunk[0].toInt() and 255) == 8)
+        assertTrue((chunk[7].toInt() and 255) == 20)
+        assertTrue((chunk[8].toInt() and 255) == 7)
+        assertTrue((chunk[9].toInt() and 255) == 0)
+        assertArrayEquals(Amf0Writer.string("publish"), chunk.copyOfRange(12, 22))
+    }
+
     @Test(expected = IllegalArgumentException::class)
     fun rejectsInvalidConnectionUrl() {
         RtmpPublishCommands.connect("live", "https://example.test/live")
