@@ -181,12 +181,19 @@ class MainActivity : AppCompatActivity() {
                 playerView = playerView,
                 onError = { error ->
                     status.text = "TESTE H.264: ${error.message}"
+                    // A pipeline já agenda o próprio fechamento após erro.
                     encoderDiagnostic = null
                 },
                 onVideoFormat = { },
                 onVideoSample = { _, info ->
-                    if (info.size > 0 && info.flags and android.media.MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
-                        runOnUiThread { encodedDiagnosticFrames++ }
+                    if (info.size > 0 &&
+                        info.flags and android.media.MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0
+                    ) {
+                        runOnUiThread {
+                            if (encoderDiagnostic != null) {
+                                encodedDiagnosticFrames++
+                            }
+                        }
                     }
                 }
             )
