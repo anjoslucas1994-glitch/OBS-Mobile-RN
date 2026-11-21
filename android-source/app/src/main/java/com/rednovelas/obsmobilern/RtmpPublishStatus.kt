@@ -16,7 +16,13 @@ internal object RtmpPublishStatus {
         if (!input.hasRemaining()) return null
         val commandObjectType = input.get().toInt() and 255
         if (commandObjectType != 5 && commandObjectType != 6) return null
-        if (!input.hasRemaining() || (input.get().toInt() and 255) != 3) return null
+        if (!input.hasRemaining()) return null
+        val objectType = input.get().toInt() and 255
+        if (objectType == 8) {
+            // AMF0 ECMA array: count de 4 bytes antes dos pares chave/valor.
+            if (input.remaining() < 4) return null
+            input.int
+        } else if (objectType != 3) return null
         while (input.remaining() >= 3) {
             val keyLength = input.short.toInt() and 65535
             if (keyLength == 0) {
