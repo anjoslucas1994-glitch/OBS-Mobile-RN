@@ -101,6 +101,23 @@ internal class RtmpTestTransport private constructor(
         return stage
     }
 
+    /**
+     * Solicita ao servidor um ID de stream após connect confirmado.
+     * Não inicia publicação e não envia chave de transmissão.
+     */
+    fun sendCreateStreamCommand() {
+        check(!socket.isClosed) { "Conexão fechada" }
+        val bytes = RtmpChunkWriter.encode(
+            chunkStreamId = 3,
+            messageStreamId = 0,
+            messageTypeId = 20,
+            timestampMs = 0,
+            payload = RtmpPublishCommands.createStream()
+        )
+        socket.getOutputStream().write(bytes)
+        socket.getOutputStream().flush()
+    }
+
     override fun close() {
         socket.close()
     }
