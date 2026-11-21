@@ -139,7 +139,10 @@ internal class RtmpTestTransport private constructor(
     private fun readTransactionResponseForTest(expectedTransactionId: Double): RtmpCommandResponse.Response {
         repeat(16) {
             val message = readNextCommandForTest()
-            val response = RtmpCommandResponse.parse(message.payload)
+            // Alguns servidores enviam onStatus/onBWDone e comandos auxiliares
+            // enquanto connect/createStream ainda aguardam sua resposta.
+            val response = runCatching { RtmpCommandResponse.parse(message.payload) }
+                .getOrNull() ?: return@repeat
             if (response.transactionId == expectedTransactionId) return response
         }
         error("Resposta RTMP da transação esperada não recebida")
