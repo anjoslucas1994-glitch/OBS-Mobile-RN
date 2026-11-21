@@ -301,11 +301,25 @@ class MainActivity : AppCompatActivity() {
         val server = rtmpServerInput.text.toString().trim()
         val key = streamKeyInput.text.toString().trim()
         val bitrate = bitrateSpinner.selectedItem?.toString() ?: "não definido"
+        val source = sourceInput.text.toString().trim()
 
         if (!server.startsWith("rtmp://") && !server.startsWith("rtmps://")) {
             AlertDialog.Builder(this)
                 .setTitle("Servidor inválido")
                 .setMessage("Informe um endereço iniciado por rtmp:// ou rtmps://.")
+                .setPositiveButton("OK", null)
+                .show()
+            return
+        }
+        val inputHost = runCatching { Uri.parse(source).host?.lowercase() }.getOrNull()
+        val outputHost = runCatching { Uri.parse(server).host?.lowercase() }.getOrNull()
+        val inputPath = Uri.parse(source).path.orEmpty()
+        val outputPath = Uri.parse(server).path.orEmpty()
+        if (inputHost != null && inputHost == outputHost &&
+            inputPath.contains("/lucas3274/") && outputPath.contains("/lucas3274")) {
+            AlertDialog.Builder(this)
+                .setTitle("Possível loop de transmissão")
+                .setMessage("A entrada e a saída parecem usar o mesmo canal Vox. Configure uma fonte ou destino de teste separado. Nenhuma transmissão foi iniciada.")
                 .setPositiveButton("OK", null)
                 .show()
             return
