@@ -27,8 +27,8 @@ internal class HlsVideoFramePipeline(
     private var encoder: CompositedVideoEncoder? = null
     private var running = false
     private var busy = false
-    private var frameIndex = 0L
-    private var lastFrameTimeMs = 0L
+    private var firstFrameTimeNs = -1L
+    private var lastTimestampNs = -1L
     private var logo: Bitmap? = null
     private var lowerThird = ""
     private var ticker = ""
@@ -85,10 +85,10 @@ internal class HlsVideoFramePipeline(
             val currentLogo = logo
             // Timestamp baseado no relógio monotônico, não no número de capturas.
             // Assim atrasos do PixelCopy não aceleram artificialmente o vídeo.
-            val nowMs = android.os.SystemClock.elapsedRealtime()
-            if (lastFrameTimeMs == 0L) lastFrameTimeMs = nowMs
-            val timestamp = (nowMs - lastFrameTimeMs) * 1_000_000L
-            frameIndex++
+            val nowNs = android.os.SystemClock.elapsedRealtimeNanos()
+            if (firstFrameTimeNs < 0L) firstFrameTimeNs = nowNs
+            val timestamp = (nowNs - firstFrameTimeNs).coerceAtLeast(lastTimestampNs + 1L)
+            lastTimestampNs = timestamp
             worker.post {
                 try {
                     encoder?.submitFrame(frame, currentLogo, text, scroll, timestamp)
