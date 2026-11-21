@@ -15,11 +15,13 @@ internal class HlsRtmpVideoSession(
     playerView: PlayerView,
     transport: RtmpTestTransport,
     publishedStreamId: Int,
-    onError: (Throwable) -> Unit
+    onError: (Throwable) -> Unit,
+    bitrate: Int = 1_600_000
 ) : AutoCloseable {
     private val output = EncodedRtmpOutput(transport, publishedStreamId)
     private val video = HlsVideoFramePipeline(
         playerView = playerView,
+        bitrate = bitrate,
         onError = onError,
         onVideoFormat = output::onVideoFormat,
         onVideoSample = output::onVideoSample
@@ -36,6 +38,8 @@ internal class HlsRtmpVideoSession(
     fun updateGraphics(logo: Bitmap?, lowerThird: String, ticker: String) {
         video.updateGraphics(logo, lowerThird, ticker)
     }
+
+    fun stopWhenClosed(onClosed: () -> Unit) = video.stopWhenClosed(onClosed)
 
     override fun close() {
         video.close()
