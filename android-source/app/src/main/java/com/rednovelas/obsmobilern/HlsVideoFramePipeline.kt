@@ -106,9 +106,15 @@ internal class HlsVideoFramePipeline(
             lastTimestampNs = timestamp
             worker.post {
                 try {
+                    // Liberar buffers antes de enviar outro quadro ao EGL:
+                    // alguns codecs bloqueiam eglSwapBuffers quando a saída enche.
+                    encoder?.drain(
+                        timeoutUs = 0,
+                        onFormat = onVideoFormat,
+                        onSample = onVideoSample
+                    )
                     encoder?.submitFrame(frame, currentLogo, text, scroll, timestamp)
                     // Copiar o buffer no callback: MediaCodec o libera ao retornar.
-                    // Drenar evita travar o encoder após preencher seus buffers.
                     encoder?.drain(
                         timeoutUs = 0,
                         onFormat = onVideoFormat,
