@@ -74,7 +74,10 @@ internal class RtmpChunkStreamReader(
                 3 -> {
                     if (state.extended) {
                         val extended = u32()
-                        if (!continuing) {
+                        if (continuing) {
+                            val expected = if (state.absoluteHeader) state.timestamp else state.delta
+                            require(extended == expected) { "Timestamp estendido divergente na continuação RTMP" }
+                        } else {
                             state.timestamp = if (state.absoluteHeader) extended
                                 else state.timestamp + extended
                             state.delta = if (state.absoluteHeader) 0 else extended
