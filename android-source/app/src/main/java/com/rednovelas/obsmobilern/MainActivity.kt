@@ -307,49 +307,31 @@ class MainActivity : AppCompatActivity() {
     private fun validateRtmpSettings() {
         val server = rtmpServerInput.text.toString().trim()
         val key = streamKeyInput.text.toString().trim()
-        val bitrate = bitrateSpinner.selectedItem?.toString() ?: "não definido"
         val source = sourceInput.text.toString().trim()
+        val bitrate = bitrateSpinner.selectedItem?.toString() ?: "não definido"
 
-        if (!server.startsWith("rtmp://") && !server.startsWith("rtmps://")) {
-            AlertDialog.Builder(this)
-                .setTitle("Servidor inválido")
-                .setMessage("Informe um endereço iniciado por rtmp:// ou rtmps://.")
-                .setPositiveButton("OK", null)
-                .show()
-            return
+        when (val result = StreamDestinationGuard.inspect(source, server, key)) {
+            is StreamDestinationGuard.Result.Blocked -> {
+                AlertDialog.Builder(this)
+                    .setTitle("Verifique a configuração")
+                    .setMessage(result.reason + "\n\nNenhuma transmissão foi iniciada.")
+                    .setPositiveButton("OK", null)
+                    .show()
+            }
+            StreamDestinationGuard.Result.AllowedForTesting -> {
+                AlertDialog.Builder(this)
+                    .setTitle("Campos verificados")
+                    .setMessage(
+                        "Endereços: formato aceito\\n" +
+                        "Chave: preenchida e oculta\\n" +
+                        "Taxa selecionada: $bitrate\\n\\n" +
+                        "Esta verificação não testa a conexão, não garante ausência de loop e não transmite vídeo. " +
+                        "Use um destino de teste separado."
+                    )
+                    .setPositiveButton("OK", null)
+                    .show()
+            }
         }
-        val inputHost = runCatching { Uri.parse(source).host?.lowercase() }.getOrNull()
-        val outputHost = runCatching { Uri.parse(server).host?.lowercase() }.getOrNull()
-        val inputPath = Uri.parse(source).path.orEmpty()
-        val outputPath = Uri.parse(server).path.orEmpty()
-        if (inputHost != null && inputHost == outputHost &&
-            inputPath.contains("/lucas3274/") && outputPath.contains("/lucas3274")) {
-            AlertDialog.Builder(this)
-                .setTitle("Possível loop de transmissão")
-                .setMessage("A entrada e a saída parecem usar o mesmo canal Vox. Configure uma fonte ou destino de teste separado. Nenhuma transmissão foi iniciada.")
-                .setPositiveButton("OK", null)
-                .show()
-            return
-        }
-        if (key.isBlank()) {
-            AlertDialog.Builder(this)
-                .setTitle("Chave não informada")
-                .setMessage("Digite a chave/token RTMP fornecida pelo painel Vox. Ela não é salva pelo aplicativo.")
-                .setPositiveButton("OK", null)
-                .show()
-            return
-        }
-
-        AlertDialog.Builder(this)
-            .setTitle("Dados preenchidos")
-            .setMessage(
-                "Servidor: endereço informado\n" +
-                "Chave: preenchida e ocultada\n" +
-                "Taxa selecionada: $bitrate\n\n" +
-                "Validação dos campos concluída. Isso ainda não testa a conexão nem inicia uma transmissão: o módulo de codificação e publicação RTMP ainda será integrado."
-            )
-            .setPositiveButton("OK", null)
-            .show()
     }
 
     private fun loadPreview() {
