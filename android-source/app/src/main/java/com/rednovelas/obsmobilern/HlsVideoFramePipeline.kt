@@ -4,7 +4,6 @@ import android.graphics.Bitmap
 import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
-import android.os.SystemClock
 import androidx.media3.ui.PlayerView
 
 /**
@@ -18,7 +17,9 @@ internal class HlsVideoFramePipeline(
     private val height: Int = 360,
     private val bitrate: Int = 2_500_000,
     private val fps: Int = 15,
-    private val onError: (Throwable) -> Unit
+    private val onError: (Throwable) -> Unit,
+    private val onVideoFormat: (android.media.MediaFormat) -> Unit,
+    private val onVideoSample: (java.nio.ByteBuffer, android.media.MediaCodec.BufferInfo) -> Unit
 ) : AutoCloseable {
     private val main = Handler(Looper.getMainLooper())
     private val workerThread = HandlerThread("RN-HLS-Encoder")
@@ -26,7 +27,6 @@ internal class HlsVideoFramePipeline(
     private var encoder: CompositedVideoEncoder? = null
     private var running = false
     private var busy = false
-    private var firstFrameNs = -1L
     private var frameIndex = 0L
     private var logo: Bitmap? = null
     private var lowerThird = ""
@@ -81,8 +81,13 @@ internal class HlsVideoFramePipeline(
             worker.post {
                 try {
                     encoder?.submitFrame(frame, currentLogo, text, scroll, timestamp)
-                    // O codificador precisa ser drenado por um consumidor RTMP
-                    // antes de usar este pipeline em produção.
+                    // Copiar o buffer no callback: MediaCodec o libera ao retornar.
+                    // Drenar evita travar o encoder após preencher seus buffers.
+                    encoder?.drain(
+                        timeoutUs = 0,
+                        onFormat = onVideoFormat,
+                        onSample = onVideoSample
+                    )
                 } catch (error: Throwable) {
                     main.post { if (running) { onError(error); close() } }
                 } finally {
