@@ -87,7 +87,7 @@ jobs:
           s = app.read_text()
           dep = 'implementation("com.github.pedroSG94.RootEncoder:library:2.8.2")'
           if dep not in s:
-              s += "\\ndependencies {\\n    " + dep + "\\n}\\n"
+              s += chr(10) + "dependencies {" + chr(10) + "    " + dep + chr(10) + "}" + chr(10)
               app.write_text(s)
           manifest = Path("app/src/main/AndroidManifest.xml")
           s = manifest.read_text()
