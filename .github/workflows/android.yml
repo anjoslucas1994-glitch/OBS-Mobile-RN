@@ -81,7 +81,7 @@ jobs:
           settings = Path("settings.gradle.kts")
           s = settings.read_text()
           if "https://jitpack.io" not in s:
-              s = s.replace("mavenCentral()", 'mavenCentral()\\n        maven { url = uri("https://jitpack.io") }')
+              s = s.replace("mavenCentral()", 'mavenCentral(); maven { url = uri("https://jitpack.io") }')
           settings.write_text(s)
           app = Path("app/build.gradle.kts")
           s = app.read_text()
