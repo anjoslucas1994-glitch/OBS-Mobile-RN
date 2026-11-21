@@ -25,7 +25,7 @@ jobs:
           gradle-version: '8.9'
       - name: Compilar APK de teste
         working-directory: android-source
-        run: gradle assembleDebug
+        run: gradle testDebugUnitTest assembleDebug
       - uses: actions/upload-artifact@v4
         with:
           name: OBS-Mobile-RN-v06-teste
