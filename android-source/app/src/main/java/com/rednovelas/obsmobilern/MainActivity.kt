@@ -17,6 +17,8 @@ import androidx.media3.ui.PlayerView
 
 class MainActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
+    private var encoderDiagnostic: HlsVideoFramePipeline? = null
+    private var encodedDiagnosticFrames = 0
     private lateinit var playerView: PlayerView
     private lateinit var sourceInput: EditText
     private lateinit var overlayText: EditText
@@ -163,6 +165,48 @@ class MainActivity : AppCompatActivity() {
             }
         }
         root.addView(captureTestButton)
+
+        val encoderTestButton = button("TESTAR CODIFICAÇÃO H.264 (5 SEGUNDOS)")
+        encoderTestButton.setOnClickListener {
+            if (encoderDiagnostic != null) {
+                status.text = "PRÉVIA: teste de codificação já está em andamento."
+                return@setOnClickListener
+            }
+            if (player?.playbackState != Player.STATE_READY) {
+                status.text = "PRÉVIA: carregue o M3U8 antes do teste H.264."
+                return@setOnClickListener
+            }
+            encodedDiagnosticFrames = 0
+            val diagnostic = HlsVideoFramePipeline(
+                playerView = playerView,
+                onError = { error ->
+                    status.text = "TESTE H.264: ${error.message}"
+                    encoderDiagnostic = null
+                },
+                onVideoFormat = { },
+                onVideoSample = { _, info ->
+                    if (info.size > 0 && info.flags and android.media.MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
+                        runOnUiThread { encodedDiagnosticFrames++ }
+                    }
+                }
+            )
+            encoderDiagnostic = diagnostic
+            try {
+                diagnostic.start()
+                status.text = "TESTE H.264: codificando localmente, sem RTMP..."
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    if (encoderDiagnostic === diagnostic) {
+                        diagnostic.close()
+                        encoderDiagnostic = null
+                        status.text = "TESTE H.264: $"+"{encodedDiagnosticFrames} quadros codificados em 5 segundos. Nenhuma transmissão enviada."
+                    }
+                }, 5000L)
+            } catch (error: Exception) {
+                encoderDiagnostic = null
+                status.text = "TESTE H.264: ${error.message}"
+            }
+        }
+        root.addView(encoderTestButton)
 
         val section = TextView(this).apply {
             text = "ELEMENTOS GRÁFICOS"
@@ -430,6 +474,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        encoderDiagnostic?.close()
+        encoderDiagnostic = null
         playerView.player = null
         player?.release()
         player = null
