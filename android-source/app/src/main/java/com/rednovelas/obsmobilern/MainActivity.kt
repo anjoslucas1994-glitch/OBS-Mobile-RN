@@ -288,7 +288,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.5 • CONTROLES EM DESENVOLVIMENTO • REDE NOVELAS"
+            text = "VERSÃO 0.6 • CONTROLES EM DESENVOLVIMENTO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -322,9 +322,9 @@ class MainActivity : AppCompatActivity() {
                 AlertDialog.Builder(this)
                     .setTitle("Campos verificados")
                     .setMessage(
-                        "Endereços: formato aceito\\n" +
-                        "Chave: preenchida e oculta\\n" +
-                        "Taxa selecionada: $bitrate\\n\\n" +
+                        "Endereços: formato aceito\n" +
+                        "Chave: preenchida e oculta\n" +
+                        "Taxa selecionada: $bitrate\n\n" +
                         "Esta verificação não testa a conexão, não garante ausência de loop e não transmite vídeo. " +
                         "Use um destino de teste separado."
                     )
