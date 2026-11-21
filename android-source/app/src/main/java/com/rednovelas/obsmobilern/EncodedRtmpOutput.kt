@@ -35,9 +35,20 @@ internal class EncodedRtmpOutput(
     fun onVideoSample(sample: ByteBuffer, info: MediaCodec.BufferInfo) {
         if (info.size <= 0 || info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) return
         val keyframe = info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
-        transport.sendEncodedMediaPacketForTest(
-            streamId, packets.videoAnnexBSample(sample, keyframe, info.presentationTimeUs)
-        )
+        val input = sample.slice()
+        val annexB = input.remaining() >= 3 &&
+            input.get(input.position()) == 0.toByte() &&
+            input.get(input.position() + 1) == 0.toByte() &&
+            (input.get(input.position() + 2) == 1.toByte() ||
+                (input.remaining() >= 4 &&
+                    input.get(input.position() + 2) == 0.toByte() &&
+                    input.get(input.position() + 3) == 1.toByte()))
+        val encoded = if (annexB) {
+            packets.videoAnnexBSample(input, keyframe, info.presentationTimeUs)
+        } else {
+            packets.videoSample(input, keyframe, info.presentationTimeUs)
+        }
+        transport.sendEncodedMediaPacketForTest(streamId, encoded)
     }
 
     fun onAudioSample(sample: ByteBuffer, info: MediaCodec.BufferInfo) {
