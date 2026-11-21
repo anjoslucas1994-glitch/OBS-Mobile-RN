@@ -28,6 +28,7 @@ internal class HlsVideoFramePipeline(
     private var running = false
     private var busy = false
     private var frameIndex = 0L
+    private var lastFrameTimeMs = 0L
     private var logo: Bitmap? = null
     private var lowerThird = ""
     private var ticker = ""
@@ -82,7 +83,11 @@ internal class HlsVideoFramePipeline(
             val text = lowerThird
             val scroll = ticker
             val currentLogo = logo
-            val timestamp = frameIndex * (1_000_000_000L / fps)
+            // Timestamp baseado no relógio monotônico, não no número de capturas.
+            // Assim atrasos do PixelCopy não aceleram artificialmente o vídeo.
+            val nowMs = android.os.SystemClock.elapsedRealtime()
+            if (lastFrameTimeMs == 0L) lastFrameTimeMs = nowMs
+            val timestamp = (nowMs - lastFrameTimeMs) * 1_000_000L
             frameIndex++
             worker.post {
                 try {
@@ -100,7 +105,7 @@ internal class HlsVideoFramePipeline(
                     frame.recycle()
                     main.post {
                         busy = false
-                        if (running) main.postDelayed({ scheduleNext() }, 1000L / fps)
+                        if (running) main.postDelayed({ scheduleNext() }, (1000L / fps).coerceAtLeast(1L))
                     }
                 }
             }
