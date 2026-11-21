@@ -30,6 +30,20 @@ class RtmpMediaPacketBuilderTest {
         )
     }
 
+    @Test fun annexBVideoIsConvertedBeforeRtmpPacketization() {
+        val builder = RtmpMediaPacketBuilder(1)
+        val packet = builder.videoAnnexBSample(
+            ByteBuffer.wrap(byteArrayOf(0, 0, 0, 1, 0x65, 0x01)),
+            true, 1_000_000
+        )
+        val message = RtmpSimpleChunkReader.read(ByteArrayInputStream(packet))
+        assertEquals(9, message.typeId)
+        assertArrayEquals(
+            byteArrayOf(0x17, 0x01, 0, 0, 0, 0, 0, 0, 2, 0x65, 0x01),
+            message.payload
+        )
+    }
+
     @Test fun clampsEarlyOutOfOrderSampleToZero() {
         val builder = RtmpMediaPacketBuilder(1)
         builder.audioSample(ByteBuffer.wrap(byteArrayOf(1)), 2000)
