@@ -460,11 +460,13 @@ class MainActivity : AppCompatActivity() {
             status.text = "GRAVAÇÃO MP4: compondo logo e textos, sem áudio e sem RTMP..."
             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                 if (clipPipeline === diagnostic && clipRecorder === activeRecorder) {
-                    diagnostic.close()
-                    clipPipeline = null
-                    clipRecorder = null
-                    try {
-                        val count = activeRecorder.finish()
+                    status.text = "GRAVAÇÃO MP4: finalizando arquivo..."
+                    diagnostic.stopWhenClosed {
+                        if (clipRecorder !== activeRecorder) return@stopWhenClosed
+                        clipPipeline = null
+                        clipRecorder = null
+                        try {
+                            val count = activeRecorder.finish()
                         status.text = "MP4 SALVO: $count quadros com gráficos. Abra o vídeo na galeria."
                         AlertDialog.Builder(this)
                             .setTitle("Vídeo de teste salvo")
@@ -480,9 +482,10 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                             .show()
-                    } catch (error: Exception) {
-                        activeRecorder.discard()
-                        status.text = "GRAVAÇÃO MP4: ${error.message}"
+                        } catch (error: Exception) {
+                            activeRecorder.discard()
+                            status.text = "GRAVAÇÃO MP4: ${error.message}"
+                        }
                     }
                 }
             }, 5000L)
