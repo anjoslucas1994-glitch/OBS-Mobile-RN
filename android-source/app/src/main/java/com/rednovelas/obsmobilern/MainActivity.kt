@@ -222,10 +222,11 @@ class MainActivity : AppCompatActivity() {
                     if (encoderDiagnostic === diagnostic) {
                         diagnostic.close()
                         encoderDiagnostic = null
-                        status.text = "TESTE H.264: $"+"{encodedDiagnosticFrames} quadros codificados em 5 segundos. Nenhuma transmissão enviada."
+                        status.text = "TESTE H.264: ${encodedDiagnosticFrames} quadros codificados em 5 segundos. Nenhuma transmissão enviada."
                     }
                 }, 5000L)
             } catch (error: Exception) {
+                diagnostic.close()
                 encoderDiagnostic = null
                 status.text = "TESTE H.264: ${error.message}"
             }
