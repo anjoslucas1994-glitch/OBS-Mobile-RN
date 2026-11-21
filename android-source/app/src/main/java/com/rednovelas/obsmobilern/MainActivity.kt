@@ -28,6 +28,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var streamKeyInput: EditText
     private lateinit var bitrateSpinner: Spinner
     private var logoUri: Uri? = null
+    private val graphicPrefs by lazy { getSharedPreferences("graphic_preview", MODE_PRIVATE) }
 
     private val red = Color.rgb(165, 22, 37)
     private val gold = Color.rgb(181, 138, 50)
@@ -144,6 +145,7 @@ class MainActivity : AppCompatActivity() {
         overlayText = EditText(this).apply {
             hint = "Texto ou letreiro para aparecer na tela"
             textSize = 14f
+            setText(graphicPrefs.getString("lower_third", ""))
         }
         root.addView(overlayText)
 
@@ -152,12 +154,14 @@ class MainActivity : AppCompatActivity() {
             val value = overlayText.text.toString().trim()
             overlayLabel.text = value
             overlayLabel.visibility = if (value.isEmpty()) View.GONE else View.VISIBLE
+            graphicPrefs.edit().putString("lower_third", value).apply()
         }
         root.addView(overlayButton)
 
         val tickerInput = EditText(this).apply {
             hint = "Texto rolante (ex.: Acompanhe a programação da Rede Novelas)"
             textSize = 14f
+            setText(graphicPrefs.getString("ticker", ""))
         }
         root.addView(tickerInput)
 
@@ -167,8 +171,14 @@ class MainActivity : AppCompatActivity() {
             tickerLabel.text = value
             tickerLabel.visibility = if (value.isEmpty()) View.GONE else View.VISIBLE
             tickerLabel.isSelected = true
+            graphicPrefs.edit().putString("ticker", value).apply()
         }
         root.addView(tickerButton)
+
+        overlayLabel.text = overlayText.text.toString()
+        overlayLabel.visibility = if (overlayLabel.text.isNullOrEmpty()) View.GONE else View.VISIBLE
+        tickerLabel.text = tickerInput.text.toString()
+        tickerLabel.visibility = if (tickerLabel.text.isNullOrEmpty()) View.GONE else View.VISIBLE
 
         val logoButton = button("ESCOLHER LOGOTIPO")
         logoButton.setOnClickListener {
