@@ -133,17 +133,52 @@ internal class HlsVideoFramePipeline(
         }
     }
 
+    /** Aguarda o fim dos buffers H.264 antes de fechar o arquivo MP4. */
+    fun stopWhenClosed(onClosed: () -> Unit) {
+        stopInternal(onClosed)
+    }
+
     override fun close() {
+        stopInternal(null)
+    }
+
+    private fun stopInternal(onClosed: (() -> Unit)?) {
         check(Looper.myLooper() == Looper.getMainLooper()) { "Parar na thread principal" }
-        if (!running) return
+        if (!running) {
+            onClosed?.invoke()
+            return
+        }
         running = false
         main.removeCallbacksAndMessages(null)
         worker.post {
             try {
-                encoder?.close()
-                encoder = null
+                val active = encoder
+                if (onClosed != null && active != null) {
+                    active.signalEndOfStream()
+                    var gotEnd = false
+                    repeat(30) {
+                        if (!gotEnd) {
+                            gotEnd = active.drain(
+                                timeoutUs = 50_000,
+                                onFormat = onVideoFormat,
+                                onSample = onVideoSample
+                            )
+                        }
+                    }
+                    check(gotEnd) { "Codificador não finalizou o vídeo" }
+                }
+            } catch (error: Throwable) {
+                if (onClosed != null) {
+                    main.post { onError(error) }
+                }
             } finally {
-                workerThread.quitSafely()
+                try {
+                    encoder?.close()
+                    encoder = null
+                } finally {
+                    workerThread.quitSafely()
+                    if (onClosed != null) main.post(onClosed)
+                }
             }
         }
     }
