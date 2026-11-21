@@ -142,6 +142,25 @@ internal class RtmpTestTransport private constructor(
         return requireNotNull(negotiation.streamId)
     }
 
+    /**
+     * Envia publish apenas após receber um streamId válido.
+     * Este método não verifica onStatus nem envia vídeo ou áudio.
+     * Usar exclusivamente em servidor de teste autorizado.
+     */
+    fun sendPublishCommandForTest(destination: RtmpDestination, streamId: Int) {
+        check(!socket.isClosed) { "Conexão fechada" }
+        require(streamId > 0) { "ID da sessão RTMP inválido" }
+        val message = RtmpChunkWriter.encode(
+            chunkStreamId = 8,
+            messageStreamId = streamId,
+            messageTypeId = 20,
+            timestampMs = 0,
+            payload = RtmpPublishCommands.publish(destination.streamName)
+        )
+        socket.getOutputStream().write(message)
+        socket.getOutputStream().flush()
+    }
+
     override fun close() {
         socket.close()
     }
