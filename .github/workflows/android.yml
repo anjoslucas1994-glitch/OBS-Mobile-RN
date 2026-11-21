@@ -54,6 +54,21 @@ jobs:
               p.write_text(s)
           PY
 
+      - name: Corrigir importação do AlertDialog
+        working-directory: projeto/OBS_Mobile_RN
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/src/main/java/com/rednovelas/obsmobilern/MainActivity.kt")
+          s = p.read_text()
+          if "import android.app.AlertDialog" not in s:
+              lines = s.splitlines()
+              package_index = next(i for i, line in enumerate(lines) if line.startswith("package "))
+              lines.insert(package_index + 1, "")
+              lines.insert(package_index + 2, "import android.app.AlertDialog")
+              p.write_text("\n".join(lines) + "\n")
+          PY
+
       - name: Configurar Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
