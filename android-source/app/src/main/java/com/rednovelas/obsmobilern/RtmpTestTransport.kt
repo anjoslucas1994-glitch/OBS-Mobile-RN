@@ -15,6 +15,7 @@ internal class RtmpTestTransport private constructor(
     private val socket: Socket
 ) : Closeable {
     private var incomingChunkSize = 128
+    private var publishedStreamId: Int? = null
 
     companion object {
         fun connect(destination: RtmpDestination, timeoutMs: Int = 5000): RtmpTestTransport {
@@ -179,11 +180,9 @@ internal class RtmpTestTransport private constructor(
             "Resposta de publicação não é comando AMF0"
         }
         val code = RtmpPublishStatus.code(message.payload)
-        return when (code) {
-            "NetStream.Publish.Start" -> true
-            "NetStream.Publish.BadName", "NetStream.Publish.Denied" -> false
-            else -> false
-        }
+        val accepted = code == "NetStream.Publish.Start"
+        publishedStreamId = if (accepted) expectedStreamId else null
+        return accepted
     }
 
     /**
@@ -243,6 +242,28 @@ internal class RtmpTestTransport private constructor(
             }
         }
         error("Servidor enviou mensagens de controle demais")
+    }
+
+    /**
+     * Envia mídia já codificada somente após Publish.Start.
+     * Não captura HLS nem codifica quadros; usar apenas servidor de teste.
+     */
+    fun sendEncodedMediaPacketForTest(streamId: Int, packet: ByteArray) {
+        check(!socket.isClosed) { "Conexão fechada" }
+        check(publishedStreamId == streamId && streamId > 0) {
+            "Publicação RTMP não confirmada"
+        }
+        require(packet.size in 13..(1024 * 1024)) { "Pacote RTMP inválido" }
+        require((packet[0].toInt() ushr 6) == 0) { "Cabeçalho RTMP inválido" }
+        val type = packet[7].toInt() and 255
+        require(type == 8 || type == 9) { "Somente áudio e vídeo" }
+        val id = (packet[8].toInt() and 255) or
+            ((packet[9].toInt() and 255) shl 8) or
+            ((packet[10].toInt() and 255) shl 16) or
+            ((packet[11].toInt() and 255) shl 24)
+        require(id == streamId) { "Pacote de outra sessão RTMP" }
+        socket.getOutputStream().write(packet)
+        socket.getOutputStream().flush()
     }
 
     override fun close() {
