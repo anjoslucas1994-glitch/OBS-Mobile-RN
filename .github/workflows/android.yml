@@ -1,15 +1,20 @@
-name: Gerar APK - OBS Mobile RN
+name: Compilar APK - OBS Mobile RN v0.6
 
 on:
   workflow_dispatch:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+      - desenvolvimento-v0.6
+    paths:
+      - "android-source/**"
+      - ".github/workflows/android.yml"
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Baixar repositório
+      - name: Baixar código
         uses: actions/checkout@v4
 
       - name: Configurar Java 17
@@ -18,56 +23,10 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Aceitar licenças e instalar Android SDK
+      - name: Instalar Android SDK
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "platform-tools"
-
-      - name: Extrair projeto Android
-        run: |
-          unzip -q OBS_Mobile_RN_v0.3_Android_Studio.zip -d projeto
-          test -f projeto/OBS_Mobile_RN/settings.gradle.kts
-          test -f projeto/OBS_Mobile_RN/app/build.gradle.kts
-
-      - name: Ajustar compatibilidade Java e Kotlin
-        working-directory: projeto/OBS_Mobile_RN
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/build.gradle.kts")
-          s = p.read_text()
-          block = """
-          android {
-              compileOptions {
-                  sourceCompatibility = JavaVersion.VERSION_17
-                  targetCompatibility = JavaVersion.VERSION_17
-              }
-          }
-          tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-              kotlinOptions {
-                  jvmTarget = "17"
-              }
-          }
-          """
-          if "sourceCompatibility = JavaVersion.VERSION_17" not in s:
-              s = s.replace("dependencies {", block + "\ndependencies {")
-              p.write_text(s)
-          PY
-
-      - name: Corrigir importação do AlertDialog
-        working-directory: projeto/OBS_Mobile_RN
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path("app/src/main/java/com/rednovelas/obsmobilern/MainActivity.kt")
-          s = p.read_text()
-          if "import android.app.AlertDialog" not in s:
-              lines = s.splitlines()
-              package_index = next(i for i, line in enumerate(lines) if line.startswith("package "))
-              lines.insert(package_index + 1, "")
-              lines.insert(package_index + 2, "import android.app.AlertDialog")
-              p.write_text("\n".join(lines) + "\n")
-          PY
 
       - name: Configurar Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
@@ -75,12 +34,12 @@ jobs:
           gradle-version: "8.9"
 
       - name: Compilar APK de depuração
-        working-directory: projeto/OBS_Mobile_RN
-        run: gradle assembleDebug
+        working-directory: android-source
+        run: gradle --no-daemon assembleDebug
 
-      - name: Publicar APK para download
+      - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: OBS-Mobile-RN-APK
-          path: projeto/OBS_Mobile_RN/app/build/outputs/apk/debug/app-debug.apk
+          name: OBS-Mobile-RN-v0.6-debug
+          path: android-source/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
