@@ -30,10 +30,20 @@ class RtmpMediaPacketBuilderTest {
         )
     }
 
-    @Test(expected = IllegalArgumentException::class)
-    fun rejectsBackwardsTimestamp() {
+    @Test fun clampsEarlyOutOfOrderSampleToZero() {
         val builder = RtmpMediaPacketBuilder(1)
         builder.audioSample(ByteBuffer.wrap(byteArrayOf(1)), 2000)
+        val early = builder.audioSample(ByteBuffer.wrap(byteArrayOf(1)), 1000)
+        val decoded = RtmpSimpleChunkReader.read(ByteArrayInputStream(early))
+        assertEquals(0L, decoded.timestampMs)
+    }
+
+    @Test fun resetStartsNewTimestampOrigin() {
+        val builder = RtmpMediaPacketBuilder(1)
         builder.audioSample(ByteBuffer.wrap(byteArrayOf(1)), 1000)
+        builder.reset()
+        val restarted = builder.audioSample(ByteBuffer.wrap(byteArrayOf(1)), 9000)
+        val decoded = RtmpSimpleChunkReader.read(ByteArrayInputStream(restarted))
+        assertEquals(0L, decoded.timestampMs)
     }
 }
