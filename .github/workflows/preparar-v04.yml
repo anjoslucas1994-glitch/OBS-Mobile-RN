@@ -1,0 +1,33 @@
+name: Preparar fontes OBS Mobile RN v0.4
+on:
+  push:
+    paths:
+      - '.github/workflows/preparar-v04.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  extrair-fontes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extrair fontes Android da v0.3
+        run: |
+          mkdir -p /tmp/obsrn-v04
+          unzip -q OBS_Mobile_RN_v0.3_Android_Studio.zip -d /tmp/obsrn-v04
+          test -f /tmp/obsrn-v04/OBS_Mobile_RN/app/build.gradle.kts
+          test -f /tmp/obsrn-v04/OBS_Mobile_RN/app/src/main/java/com/rednovelas/obsmobilern/MainActivity.kt
+      - name: Criar branch de desenvolvimento com fontes editáveis
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B desenvolvimento-v0.4
+          mkdir -p android-source
+          cp -a /tmp/obsrn-v04/OBS_Mobile_RN/. android-source/
+          git add android-source
+          git commit -m "Extrair projeto Android v0.3 para desenvolvimento v0.4" || exit 0
+          git push --force-with-lease origin desenvolvimento-v0.4
