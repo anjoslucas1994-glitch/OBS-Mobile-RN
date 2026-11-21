@@ -118,6 +118,30 @@ internal class RtmpTestTransport private constructor(
         socket.getOutputStream().flush()
     }
 
+    /**
+     * Teste restrito: conecta, solicita createStream e valida o ID retornado.
+     * Não publica stream nem envia mídia. O leitor simples pode rejeitar
+     * servidores reais que intercalam mensagens de controle RTMP.
+     */
+    fun negotiateStreamForTest(destination: RtmpDestination): Int {
+        val negotiation = RtmpNegotiation()
+        sendConnectCommand(destination)
+        val connectResponse = readConnectResponseForTest()
+        check(negotiation.onCommand(connectResponse) == RtmpNegotiation.Stage.WAIT_STREAM) {
+            "Servidor RTMP recusou connect"
+        }
+        sendCreateStreamCommand()
+        val message = RtmpSimpleChunkReader.read(socket.getInputStream())
+        require(message.typeId == 20) {
+            "Resposta createStream não é AMF0; leitor RTMP completo necessário"
+        }
+        val response = RtmpCommandResponse.parse(message.payload)
+        check(negotiation.onCommand(response) == RtmpNegotiation.Stage.READY) {
+            "Servidor RTMP não confirmou createStream"
+        }
+        return requireNotNull(negotiation.streamId)
+    }
+
     override fun close() {
         socket.close()
     }
