@@ -425,7 +425,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.10 • PERFIL ZCAST DE TESTE • REDE NOVELAS"
+            text = "VERSÃO 0.11 • TESTE DE AUTORIZAÇÃO RTMP • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
