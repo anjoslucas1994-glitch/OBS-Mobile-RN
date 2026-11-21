@@ -32,6 +32,25 @@ class RtmpChunkStreamReaderTest {
         assertArrayEquals(byteArrayOf(3), c.payload)
     }
 
+    @Test fun readsExtendedTimestampAcrossMultipleChunks() {
+        val payload = ByteArray(300) { (it and 255).toByte() }
+        val timestamp = 0x01000000L
+        val encoded = RtmpChunkWriter.encode(5, 1, 9, timestamp, payload, 128)
+        val result = RtmpChunkStreamReader(ByteArrayInputStream(encoded)).read()
+        assertEquals(timestamp, result.timestampMs)
+        assertEquals(9, result.typeId)
+        assertArrayEquals(payload, result.payload)
+    }
+
+    @Test fun readsExtendedChunkStreamId() {
+        val payload = byteArrayOf(0x33)
+        // fmt=0, csid=64 (basic header 0,0), timestamp 0, size 1, type 20, stream 1.
+        val bytes = byteArrayOf(0, 0, 0, 0, 0, 0, 0, 1, 20, 1, 0, 0, 0, 0x33)
+        val result = RtmpChunkStreamReader(ByteArrayInputStream(bytes)).read()
+        assertEquals(64, result.chunkStreamId)
+        assertArrayEquals(payload, result.payload)
+    }
+
     @Test fun readsInterleavedChunksFromTwoStreams() {
         val aPayload = ByteArray(5) { 0x11 }
         val a = RtmpChunkWriter.encode(3, 1, 20, 0, aPayload, 3)
