@@ -85,6 +85,22 @@ internal class RtmpTestTransport private constructor(
         return response
     }
 
+    /**
+     * Executa somente a negociação inicial em um servidor de teste.
+     * Falha de forma explícita quando o servidor envia mensagens de controle
+     * ainda não suportadas pelo leitor experimental.
+     */
+    fun negotiateConnectForTest(destination: RtmpDestination): RtmpNegotiation.Stage {
+        sendConnectCommand(destination)
+        val response = readConnectResponseForTest()
+        val negotiation = RtmpNegotiation()
+        val stage = negotiation.onCommand(response)
+        check(stage == RtmpNegotiation.Stage.WAIT_STREAM) {
+            "Servidor não confirmou o comando connect"
+        }
+        return stage
+    }
+
     override fun close() {
         socket.close()
     }
