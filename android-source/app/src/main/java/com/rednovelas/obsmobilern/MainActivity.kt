@@ -200,8 +200,19 @@ class MainActivity : AppCompatActivity() {
             encoderDiagnostic = diagnostic
             try {
                 // O teste usa os textos já aplicados na prévia.
+                val testLogo = logoOverlay.drawable?.let { drawable ->
+                    val width = drawable.intrinsicWidth.coerceIn(1, 512)
+                    val height = drawable.intrinsicHeight.coerceIn(1, 512)
+                    val bitmap = android.graphics.Bitmap.createBitmap(
+                        width, height, android.graphics.Bitmap.Config.ARGB_8888
+                    )
+                    val canvas = android.graphics.Canvas(bitmap)
+                    drawable.setBounds(0, 0, width, height)
+                    drawable.draw(canvas)
+                    bitmap
+                }
                 diagnostic.updateGraphics(
-                    null,
+                    testLogo,
                     overlayLabel.text.toString(),
                     tickerLabel.text.toString()
                 )
