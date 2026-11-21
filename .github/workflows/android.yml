@@ -1,0 +1,47 @@
+name: Gerar APK - OBS Mobile RN
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Preparar Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Instalar Android SDK 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Extrair projeto Android
+        run: |
+          unzip -q OBS_Mobile_RN_v0.3_Android_Studio.zip -d projeto
+          test -f projeto/OBS_Mobile_RN/settings.gradle.kts
+          test -f projeto/OBS_Mobile_RN/app/build.gradle.kts
+
+      - name: Configurar Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Compilar APK de depuração
+        working-directory: projeto/OBS_Mobile_RN
+        run: gradle assembleDebug
+
+      - name: Publicar APK para download
+        uses: actions/upload-artifact@v4
+        with:
+          name: OBS-Mobile-RN-APK
+          path: projeto/OBS_Mobile_RN/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
