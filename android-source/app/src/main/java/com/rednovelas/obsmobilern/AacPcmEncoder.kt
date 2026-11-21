@@ -55,16 +55,24 @@ internal class AacPcmEncoder(
     fun queuePcm(pcm: ByteBuffer, presentationTimeUs: Long, timeoutUs: Long = 10_000): Int {
         require(presentationTimeUs >= 0)
         val encoder = checkNotNull(codec) { "Codificador AAC não iniciado" }
+        val bytesPerFrame = channelCount * 2
+        if (pcm.remaining() < bytesPerFrame) return 0
         val index = encoder.dequeueInputBuffer(timeoutUs)
         if (index < 0) return 0
         val input = checkNotNull(encoder.getInputBuffer(index))
         input.clear()
-        val bytes = minOf(input.remaining(), pcm.remaining())
-        require(bytes % (channelCount * 2) == 0) { "PCM deve conter amostras completas" }
+        val bytes = minOf(input.remaining(), pcm.remaining()) / bytesPerFrame * bytesPerFrame
+        if (bytes == 0) {
+            encoder.queueInputBuffer(index, 0, 0, presentationTimeUs, 0)
+            return 0
+        }
         val limit = pcm.limit()
-        pcm.limit(pcm.position() + bytes)
-        input.put(pcm)
-        pcm.limit(limit)
+        try {
+            pcm.limit(pcm.position() + bytes)
+            input.put(pcm)
+        } finally {
+            pcm.limit(limit)
+        }
         encoder.queueInputBuffer(index, 0, bytes, presentationTimeUs, 0)
         return bytes
     }
