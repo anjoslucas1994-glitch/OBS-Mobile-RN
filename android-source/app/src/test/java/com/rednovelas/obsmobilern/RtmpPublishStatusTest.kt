@@ -28,6 +28,17 @@ class RtmpPublishStatusTest {
         assertFalse(RtmpPublishStatus.isPublishStarted(payload))
     }
 
+    @Test fun recognizesEcmaArrayPublishStart() {
+        val objectBytes = Amf0Writer.objectValue(
+            linkedMapOf("code" to Amf0Writer.string("NetStream.Publish.Start"))
+        )
+        val ecmaArray = byteArrayOf(8, 0, 0, 0, 1) + objectBytes.copyOfRange(1, objectBytes.size)
+        val payload = Amf0Writer.command(
+            "onStatus", 0.0, Amf0Writer.nullValue(), ecmaArray
+        )
+        assertTrue(RtmpPublishStatus.isPublishStarted(payload))
+    }
+
     @Test fun rejectsMalformedStatus() {
         assertFalse(RtmpPublishStatus.isPublishStarted(byteArrayOf(1, 2, 3)))
     }
