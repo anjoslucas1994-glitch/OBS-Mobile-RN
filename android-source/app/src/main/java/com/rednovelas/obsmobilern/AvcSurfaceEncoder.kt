@@ -58,13 +58,18 @@ internal class AvcSurfaceEncoder(
      * o buffer está válido; eles são liberados ao retornar.
      * O formato pode mudar (INFO_OUTPUT_FORMAT_CHANGED) antes dos frames.
      */
+    /**
+     * Drena os quadros codificados. Retorna true quando MediaCodec sinaliza EOS,
+     * inclusive quando o último buffer contém zero bytes.
+     */
     fun drain(
         timeoutUs: Long = 10_000,
         onFormat: (MediaFormat) -> Unit,
         onSample: (java.nio.ByteBuffer, MediaCodec.BufferInfo) -> Unit
-    ) {
+    ): Boolean {
         val encoder = checkNotNull(codec) { "Codificador não iniciado" }
         val info = MediaCodec.BufferInfo()
+        var reachedEnd = false
         var index = encoder.dequeueOutputBuffer(info, timeoutUs)
         while (index >= 0 || index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
             if (index == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED) {
@@ -77,12 +82,16 @@ internal class AvcSurfaceEncoder(
                         output.limit(info.offset + info.size)
                         onSample(output.slice(), info)
                     }
+                    if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
+                        reachedEnd = true
+                    }
                 } finally {
                     encoder.releaseOutputBuffer(index, false)
                 }
             }
             index = encoder.dequeueOutputBuffer(info, 0)
         }
+        return reachedEnd
     }
 
     fun signalEndOfStream() {
