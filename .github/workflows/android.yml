@@ -76,14 +76,18 @@ jobs:
           from pathlib import Path
           root = Path("build.gradle.kts")
           s = root.read_text()
+          s = s.replace('allprojects { repositories { maven { url = uri("https://jitpack.io") } } }', '')
+          root.write_text(s)
+          settings = Path("settings.gradle.kts")
+          s = settings.read_text()
           if "https://jitpack.io" not in s:
-              s += "\nallprojects { repositories { maven { url = uri(\"https://jitpack.io\") } } }\n"
-              root.write_text(s)
+              s = s.replace("mavenCentral()", 'mavenCentral()\\n        maven { url = uri("https://jitpack.io") }')
+          settings.write_text(s)
           app = Path("app/build.gradle.kts")
           s = app.read_text()
           dep = 'implementation("com.github.pedroSG94.RootEncoder:library:2.8.2")'
           if dep not in s:
-              s += "\ndependencies {\n    " + dep + "\n}\n"
+              s += "\\ndependencies {\\n    " + dep + "\\n}\\n"
               app.write_text(s)
           manifest = Path("app/src/main/AndroidManifest.xml")
           s = manifest.read_text()
@@ -93,7 +97,7 @@ jobs:
           ]:
               if permission not in s:
                   s = s.replace('    <uses-permission android:name="android.permission.INTERNET" />',
-                                '    <uses-permission android:name="android.permission.INTERNET" />\n' + permission)
+                                '    <uses-permission android:name="android.permission.INTERNET" />\\n' + permission)
           manifest.write_text(s)
           PY
 
