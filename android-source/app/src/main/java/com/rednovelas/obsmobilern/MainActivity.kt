@@ -527,9 +527,10 @@ class MainActivity : AppCompatActivity() {
      */
     private fun testRtmpHandshake(button: Button) {
         val server = rtmpServerInput.text.toString().trim()
-        val key = streamKeyInput.text.toString().trim()
+        // O diagnóstico não precisa da chave real. Não a lê nem armazena.
+        val placeholder = "diagnostico-sem-publicacao"
         val source = sourceInput.text.toString().trim()
-        when (val safety = StreamDestinationGuard.inspect(source, server, key)) {
+        when (val safety = StreamDestinationGuard.inspect(source, server, placeholder)) {
             is StreamDestinationGuard.Result.Blocked -> {
                 AlertDialog.Builder(this)
                     .setTitle("Teste RTMP bloqueado")
@@ -541,7 +542,7 @@ class MainActivity : AppCompatActivity() {
         }
         // Nenhuma credencial será transmitida neste diagnóstico.
         val destination = try {
-            RtmpDestination.parse(server, key)
+            RtmpDestination.parse(server, placeholder)
         } catch (error: IllegalArgumentException) {
             status.text = "RTMP: ${error.message}"
             return
