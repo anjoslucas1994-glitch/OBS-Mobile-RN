@@ -29,7 +29,11 @@ internal class RtmpTestTransport private constructor(
                 socket.soTimeout = timeoutMs
                 socket.connect(InetSocketAddress(host, port), timeoutMs)
                 if (scheme == "rtmps") {
-                    (socket as javax.net.ssl.SSLSocket).startHandshake()
+                    val tlsSocket = socket as javax.net.ssl.SSLSocket
+                    val params = tlsSocket.sslParameters
+                    params.endpointIdentificationAlgorithm = "HTTPS"
+                    tlsSocket.sslParameters = params
+                    tlsSocket.startHandshake()
                 }
                 RtmpHandshake.perform(socket.getInputStream(), socket.getOutputStream())
                 return RtmpTestTransport(socket)
