@@ -69,42 +69,6 @@ jobs:
               p.write_text("\n".join(lines) + "\n")
           PY
 
-      - name: Preparar base de transmissão RTMP
-        working-directory: projeto/OBS_Mobile_RN
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          root = Path("build.gradle.kts")
-          s = root.read_text()
-          s = s.replace('allprojects { repositories { maven { url = uri("https://jitpack.io") } } }', '')
-          root.write_text(s)
-          settings = Path("settings.gradle.kts")
-          s = settings.read_text()
-          if "https://jitpack.io" not in s:
-              s = s.replace("mavenCentral()", 'mavenCentral(); maven { url = uri("https://jitpack.io") }')
-          settings.write_text(s)
-          app = Path("app/build.gradle.kts")
-          s = app.read_text()
-          dep = 'implementation("com.github.pedroSG94.RootEncoder:library:2.8.2")'
-          if dep not in s:
-              s += chr(10) + "dependencies {" + chr(10) + "    " + dep + chr(10) + "}" + chr(10)
-              app.write_text(s)
-          manifest = Path("app/src/main/AndroidManifest.xml")
-          s = manifest.read_text()
-          for permission in [
-              '    <uses-permission android:name="android.permission.RECORD_AUDIO" />',
-              '    <uses-permission android:name="android.permission.CAMERA" />'
-          ]:
-              if permission not in s:
-                  s = s.replace('    <uses-permission android:name="android.permission.INTERNET" />',
-                                '    <uses-permission android:name="android.permission.INTERNET" />\\n' + permission)
-          manifest.write_text(s)
-          properties = Path("gradle.properties")
-          ps = properties.read_text()
-          ps += "\norg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=768m\norg.gradle.workers.max=2\n"
-          properties.write_text(ps)
-          PY
-
       - name: Configurar Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
