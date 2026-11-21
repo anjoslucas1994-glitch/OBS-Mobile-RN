@@ -59,6 +59,25 @@ internal class RtmpTestTransport private constructor(
         socket.getOutputStream().flush()
     }
 
+
+    /**
+     * Lê uma única resposta AMF0 de connect em servidores que enviam fmt=0/3.
+     * Leitor limitado: não processa mensagens de controle intercaladas.
+     * Nunca interpreta este resultado como autorização para publicar mídia.
+     */
+    fun readConnectResponseForTest(): RtmpCommandResponse.Response {
+        check(!socket.isClosed) { "Conexão fechada" }
+        val message = RtmpSimpleChunkReader.read(socket.getInputStream())
+        require(message.typeId == 20) {
+            "Resposta recebida não é comando AMF0; leitor RTMP completo ainda necessário"
+        }
+        val response = RtmpCommandResponse.parse(message.payload)
+        require(response.transactionId == 1.0) {
+            "Resposta não corresponde ao comando connect"
+        }
+        return response
+    }
+
     override fun close() {
         socket.close()
     }
