@@ -21,7 +21,7 @@ class RtmpMediaPacketBuilderTest {
         assertEquals(0L, decodedVideo.timestampMs)
         assertEquals(20L, decodedAudio.timestampMs)
         assertArrayEquals(
-            byteArrayOf(0x17, 0x01, 0, 0, 0, 0, 0, 0, 0, 2, 0x65, 0x01),
+            byteArrayOf(0x17, 0x01, 0, 0, 0, 0, 0, 0, 2, 0x65, 0x01),
             decodedVideo.payload
         )
         assertArrayEquals(
