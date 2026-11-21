@@ -22,14 +22,17 @@ internal class RtmpTestTransport private constructor(
             require(scheme == "rtmp" || scheme == "rtmps")
             val host = requireNotNull(uri.host) { "Servidor RTMP inválido" }
             val port = if (uri.port > 0) uri.port else if (scheme == "rtmps") 443 else 1935
-            val socket: Socket = if (scheme == "rtmps") {
-                SSLSocketFactory.getDefault().createSocket() as Socket
-            } else Socket()
+            val rawSocket = Socket()
+            var socket: Socket = rawSocket
             try {
-                socket.soTimeout = timeoutMs
-                socket.connect(InetSocketAddress(host, port), timeoutMs)
+                rawSocket.soTimeout = timeoutMs
+                rawSocket.connect(InetSocketAddress(host, port), timeoutMs)
                 if (scheme == "rtmps") {
-                    val tlsSocket = socket as javax.net.ssl.SSLSocket
+                    // Passar host explícito permite SNI e validação do certificado.
+                    val tlsSocket = SSLSocketFactory.getDefault()
+                        .createSocket(rawSocket, host, port, true) as javax.net.ssl.SSLSocket
+                    socket = tlsSocket
+                    tlsSocket.soTimeout = timeoutMs
                     val params = tlsSocket.sslParameters
                     params.endpointIdentificationAlgorithm = "HTTPS"
                     tlsSocket.sslParameters = params
