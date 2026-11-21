@@ -171,7 +171,7 @@ internal class RtmpTestTransport private constructor(
     fun readPublishConfirmationForTest(expectedStreamId: Int): Boolean {
         check(!socket.isClosed) { "Conexão fechada" }
         require(expectedStreamId > 0)
-        val message = RtmpSimpleChunkReader.read(socket.getInputStream())
+        val message = readNextCommandForTest()
         require(message.messageStreamId == expectedStreamId) {
             "Resposta pertence a outra sessão RTMP"
         }
@@ -218,7 +218,26 @@ internal class RtmpTestTransport private constructor(
                     require(size in 1..(1024 * 1024)) { "Chunk Size fora do limite" }
                     incomingChunkSize = size
                 }
-                5, 6 -> Unit // Window Acknowledgement Size / Set Peer Bandwidth
+                3, 5, 6 -> Unit // Acknowledgement / Window / Peer Bandwidth
+                4 -> {
+                    // User Control: PingRequest (evento 6) requer PingResponse (7).
+                    require(message.payload.size >= 2) { "User Control RTMP inválido" }
+                    val event = ((message.payload[0].toInt() and 255) shl 8) or
+                        (message.payload[1].toInt() and 255)
+                    if (event == 6) {
+                        require(message.payload.size == 6) { "PingRequest RTMP inválido" }
+                        val response = byteArrayOf(0, 7) + message.payload.copyOfRange(2, 6)
+                        val bytes = RtmpChunkWriter.encode(
+                            chunkStreamId = 2,
+                            messageStreamId = 0,
+                            messageTypeId = 4,
+                            timestampMs = 0,
+                            payload = response
+                        )
+                        socket.getOutputStream().write(bytes)
+                        socket.getOutputStream().flush()
+                    }
+                }
                 20 -> return message
                 else -> error("Tipo de mensagem RTMP ainda não suportado: ${message.typeId}")
             }
