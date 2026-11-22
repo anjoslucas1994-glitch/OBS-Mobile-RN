@@ -1,4 +1,4 @@
-name: Compilar APK - OBS Mobile RN v0.61
+name: Compilar APK - OBS Mobile RN v0.62
 
 on:
   workflow_dispatch:
@@ -46,6 +46,6 @@ jobs:
       - name: Publicar APK
         uses: actions/upload-artifact@v4
         with:
-          name: OBS-Mobile-RN-v0.61-debug
+          name: OBS-Mobile-RN-v0.62-debug
           path: android-source/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
