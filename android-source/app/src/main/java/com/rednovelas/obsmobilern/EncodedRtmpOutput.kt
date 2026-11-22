@@ -17,7 +17,7 @@ internal class EncodedRtmpOutput(
 
     init { require(streamId > 0) }
 
-    fun onVideoFormat(format: MediaFormat) {
+    @Synchronized fun onVideoFormat(format: MediaFormat) {
         val sps = format.getByteBuffer("csd-0") ?: error("SPS H.264 ausente")
         val pps = format.getByteBuffer("csd-1") ?: error("PPS H.264 ausente")
         transport.sendEncodedMediaPacketForTest(
@@ -25,14 +25,14 @@ internal class EncodedRtmpOutput(
         )
     }
 
-    fun onAudioFormat(format: MediaFormat) {
+    @Synchronized fun onAudioFormat(format: MediaFormat) {
         val asc = format.getByteBuffer("csd-0") ?: error("Configuração AAC ausente")
         val bytes = ByteArray(asc.remaining())
         asc.slice().get(bytes)
         transport.sendEncodedMediaPacketForTest(streamId, packets.audioConfiguration(bytes))
     }
 
-    fun onVideoSample(sample: ByteBuffer, info: MediaCodec.BufferInfo) {
+    @Synchronized fun onVideoSample(sample: ByteBuffer, info: MediaCodec.BufferInfo) {
         if (info.size <= 0 || info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) return
         val keyframe = info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME != 0
         val input = sample.slice()
@@ -51,7 +51,7 @@ internal class EncodedRtmpOutput(
         transport.sendEncodedMediaPacketForTest(streamId, encoded)
     }
 
-    fun onAudioSample(sample: ByteBuffer, info: MediaCodec.BufferInfo) {
+    @Synchronized fun onAudioSample(sample: ByteBuffer, info: MediaCodec.BufferInfo) {
         if (info.size <= 0 || info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) return
         transport.sendEncodedMediaPacketForTest(
             streamId, packets.audioSample(sample, info.presentationTimeUs)
