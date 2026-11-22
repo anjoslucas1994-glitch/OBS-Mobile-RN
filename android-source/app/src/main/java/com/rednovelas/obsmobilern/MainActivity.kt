@@ -981,7 +981,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.67 • RELATÓRIO FINAL APÓS FECHAMENTO • REDE NOVELAS"
+            text = "VERSÃO 0.68 • LIMITE SEGURO PARA ENCERRAMENTO RTMP • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1771,6 +1771,27 @@ class MainActivity : AppCompatActivity() {
         }
         val transportToClose = rtmpVideoTestTransport
         val stoppedAttempt = rtmpAttemptId
+        // Limite para evitar que a mesa fique presa em ENCERRANDO se
+        // o codificador ou a drenagem H.264 não devolverem o callback.
+        val closeTimeout = Runnable {
+            if (rtmpClosing && rtmpAttemptId == stoppedAttempt &&
+                rtmpVideoTestTransport === transportToClose && !isFinishing && !isDestroyed
+            ) {
+                rtmpAttemptId++ // invalida o callback de fechamento atrasado
+                runCatching { session.close() }
+                runCatching { transportToClose?.close() }
+                rtmpVideoTestTransport = null
+                rtmpVideoTestRunning = false
+                rtmpClosing = false
+                rememberLastTest(session, "Encerramento forçado: codificador não finalizou em 10s")
+                button.isEnabled = true
+                setRtmpControls(false, false)
+                setTransmissionState("● FORA DO AR — ZCAST DE TESTE", Color.DKGRAY)
+                showSourceStopped()
+                status.text = "SEGURANÇA: encerramento excedeu 10s; socket do ZCast fechado e controles liberados."
+            }
+        }
+        broadcastHandler.postDelayed(closeTimeout, 10_000L)
         session.stopWhenClosed {
             val audioPackets = session.audioPacketCount
             // O fechamento assíncrono pertence à sessão encerrada.
@@ -1783,6 +1804,7 @@ class MainActivity : AppCompatActivity() {
                     rtmpVideoTestTransport !== transportToClose ||
                     isFinishing || isDestroyed
                 ) return@runOnUiThread
+                broadcastHandler.removeCallbacks(closeTimeout)
                 rememberLastTest(session, lastTestReason)
                 rtmpVideoTestTransport = null
                 rtmpVideoTestRunning = false
