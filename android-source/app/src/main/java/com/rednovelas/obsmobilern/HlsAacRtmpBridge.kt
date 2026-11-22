@@ -21,6 +21,11 @@ internal class HlsAacRtmpBridge(
     private val onError: (Throwable) -> Unit
 ) : AutoCloseable {
     private val running = AtomicBoolean(false)
+    private val muted = AtomicBoolean(false)
+
+    /** Silencia só a saída AAC RTMP, não o som local da prévia. */
+    fun setMuted(value: Boolean) { muted.set(value) }
+    fun isMuted(): Boolean = muted.get()
     private val queuedPcm = ArrayBlockingQueue<ByteArray>(32)
     private val audioPackets = AtomicInteger(0)
     private var thread: Thread? = null
@@ -43,6 +48,8 @@ internal class HlsAacRtmpBridge(
                 // Sem bloqueio no thread do ExoPlayer: descarta buffers
                 // quando houver atraso de rede para evitar travar o vídeo.
                 if (bytes.size % frameBytes == 0) {
+                    // O PCM é uma cópia independente: mutar não altera o som da prévia.
+                    if (muted.get()) bytes.fill(0)
                     if (!queuedPcm.offer(bytes)) {
                         queuedPcm.poll()
                         queuedPcm.offer(bytes)
