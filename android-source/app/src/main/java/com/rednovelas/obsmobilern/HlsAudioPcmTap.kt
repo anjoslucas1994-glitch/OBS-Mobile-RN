@@ -25,6 +25,7 @@ internal class HlsAudioPcmTap {
 
     private val bytesSeen = AtomicLong(0L)
     private val buffersSeen = AtomicLong(0L)
+    private val flushesSeen = AtomicLong(0L)
 
     @Volatile private var pcmConsumer: ((ByteArray) -> Unit)? = null
 
@@ -39,7 +40,7 @@ internal class HlsAudioPcmTap {
 
     fun snapshot(): Snapshot = Snapshot(
         sampleRate, channels, encoding,
-        bytesSeen.get(), buffersSeen.get()
+        bytesSeen.get(), buffersSeen.get(), flushesSeen.get()
     )
 
     data class Snapshot(
@@ -47,11 +48,13 @@ internal class HlsAudioPcmTap {
         val channels: Int,
         val encoding: Int,
         val bytes: Long,
-        val buffers: Long
+        val buffers: Long,
+        val flushes: Long
     )
 
     val sink = object : TeeAudioProcessor.AudioBufferSink {
         override fun flush(sampleRateHz: Int, channelCount: Int, encoding: Int) {
+            flushesSeen.incrementAndGet()
             sampleRate = sampleRateHz
             channels = channelCount
             this@HlsAudioPcmTap.encoding = encoding
