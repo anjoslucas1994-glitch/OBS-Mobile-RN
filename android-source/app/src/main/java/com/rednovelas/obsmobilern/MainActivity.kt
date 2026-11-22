@@ -76,6 +76,7 @@ class MainActivity : AppCompatActivity() {
     private var sourceSwitchStartedAtMs = 0L
     private var sourceSwitchVideoReady = false
     private var sourceSwitchStage = "AGUARDANDO A NOVA FONTE"
+    private var successfulSourceCuts = 0
     private var sourceSwitchVideoPacketsAtReady = 0L
     private var sourceSwitchAacPacketsAtReady = 0
     private var broadcastPcmSampleRate = 0
@@ -881,7 +882,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.47 • ETAPAS DO CORTE A/B • REDE NOVELAS"
+            text = "VERSÃO 0.48 • CONFIRMAÇÃO E FALHA DO CORTE A/B • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1264,7 +1265,6 @@ class MainActivity : AppCompatActivity() {
                         pcmState.sampleRate != broadcastPcmSampleRate ||
                         pcmState.channels != broadcastPcmChannels
                     ) {
-                        liveSourceSwitchPending = false
                         sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
                         stopRtmpVideoTest(
                             startLiveButton,
@@ -1305,8 +1305,12 @@ class MainActivity : AppCompatActivity() {
                     liveSourceSwitchPending = false
                     sourceSwitchPcmReady = false
                     sourceSwitchStage = "CORTE CONCLUÍDO LOCALMENTE"
+                    successfulSourceCuts++
                     sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
-                    quickSourceLabel.text = "FONTE NO TESTE ZCAST: $activeSource"
+                    val cutDurationMs = now - sourceSwitchStartedAtMs
+                    quickSourceLabel.text =
+                        "CORTE $activeSource LOCALMENTE OK: ${cutDurationMs}ms • ${successfulSourceCuts} corte(s)"
+                    quickSourceLabel.setTextColor(red)
                     activeSourceLabel.text = "FONTE RTMP ATIVA: $activeSource"
                     status.text =
                         "CORTE A/B: novos quadros H.264 e pacotes AAC enviados localmente. Confira a saída ZCast."
@@ -1549,6 +1553,12 @@ class MainActivity : AppCompatActivity() {
             return
         }
         rtmpClosing = true
+        if (::quickSourceLabel.isInitialized) {
+            quickSourceLabel.text = if (liveSourceSwitchPending)
+                "CORTE A/B NÃO CONFIRMADO — TESTE ZCAST ENCERRANDO"
+            else "FONTE $activeSource — TRANSMISSÃO ENCERRANDO"
+            quickSourceLabel.setTextColor(gold)
+        }
         liveSourceSwitchPending = false
         sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
         val session = rtmpVideoTestSession
@@ -1658,7 +1668,6 @@ class MainActivity : AppCompatActivity() {
                 if (liveSourceSwitchPending && rtmpVideoTestSession != null &&
                     rtmpLiveMode && !rtmpClosing
                 ) {
-                    liveSourceSwitchPending = false
                     stopRtmpVideoTest(startLiveButton,
                         "CORTE A/B: tempo limite de 12s na etapa '$sourceSwitchStage' da fonte $source. Teste ZCast encerrado.")
                 }
@@ -1675,7 +1684,6 @@ class MainActivity : AppCompatActivity() {
                 exo.prepare()
                 exo.playWhenReady = true
             }.onFailure {
-                liveSourceSwitchPending = false
                 sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
                 stopRtmpVideoTest(startLiveButton,
                     "CORTE: falha ao abrir fonte $source. Teste ZCast encerrado.")
@@ -1753,7 +1761,6 @@ class MainActivity : AppCompatActivity() {
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     if (player !== exo || previewGeneration != generation) return
                     if (rtmpVideoTestSession != null && !rtmpClosing) {
-                        liveSourceSwitchPending = false
                         sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
                         stopRtmpVideoTest(startLiveButton,
                             "FONTE M3U8: falha na reprodução (${error.errorCodeName}). Teste interrompido.")
@@ -1831,6 +1838,10 @@ class MainActivity : AppCompatActivity() {
         rtmpVideoTestRunning = false
         rtmpClosing = false
         rtmpConnecting = false
+        if (::quickSourceLabel.isInitialized) {
+            quickSourceLabel.text = "FORA DO AR — TESTE ZCAST ENCERRADO"
+            quickSourceLabel.setTextColor(Color.DKGRAY)
+        }
         liveSourceSwitchPending = false
         sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
         rtmpAttemptId++
