@@ -981,7 +981,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.62 • REVALIDAÇÃO ANTES DO ENVIO RTMP • REDE NOVELAS"
+            text = "VERSÃO 0.63 • LIMPEZA DE ÁUDIO NO CORTE A/B • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1876,6 +1876,9 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             val exo = player ?: return
+            // Elimina PCM antigo ainda na fila de envio antes de iniciar
+            // a troca A/B. A fonte principal Vox é somente leitura.
+            rtmpVideoTestSession?.discardQueuedAudioBeforeCut()
             sourceSwitchAudioFlushesAtStart = pcmTap.snapshot().flushes
             sourceSwitchAudioBuffersAfterFlush = -1L
             sourceSwitchPcmReady = false
