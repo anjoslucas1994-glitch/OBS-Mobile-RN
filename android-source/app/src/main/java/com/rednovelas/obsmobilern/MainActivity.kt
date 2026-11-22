@@ -187,6 +187,16 @@ class MainActivity : AppCompatActivity() {
         quickMuteButton = quickControl("SOM ON/OFF", quickStreamRow)
         root.addView(quickStreamRow)
 
+        broadcastMonitor = TextView(this).apply {
+            text = "FORA DO AR — ZCast de testes\nH.264: 0 quadros • AAC: 0 pacotes"
+            textSize = 12f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.DKGRAY)
+            setBackgroundColor(0xFFEFECE7.toInt())
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+        }
+        root.addView(broadcastMonitor)
+
         status = TextView(this).apply {
             text = "PRÉVIA: aguardando endereço M3U8"
             textSize = 12f
@@ -702,16 +712,6 @@ class MainActivity : AppCompatActivity() {
         quickStopButton.isEnabled = false
         quickStopButton.alpha = 0.5f
 
-        broadcastMonitor = TextView(this).apply {
-            text = "FORA DO AR — ZCast de testes\nH.264: 0 quadros • AAC: 0 pacotes"
-            textSize = 12f
-            setTypeface(null, android.graphics.Typeface.BOLD)
-            setTextColor(Color.DKGRAY)
-            setBackgroundColor(0xFFEFECE7.toInt())
-            setPadding(dp(10), dp(10), dp(10), dp(10))
-        }
-        root.addView(broadcastMonitor)
-
         val mixerTitle = TextView(this).apply {
             text = "MIXER DE ÁUDIO — SAÍDA RTMP"
             setTextColor(gold)
@@ -776,7 +776,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.29 • MESA RÁPIDA PARA CELULAR • REDE NOVELAS"
+            text = "VERSÃO 0.30 • MONITOR JUNTO À PRÉVIA • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
