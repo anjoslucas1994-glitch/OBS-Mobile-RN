@@ -29,6 +29,8 @@ class MainActivity : AppCompatActivity() {
     private enum class SceneMode { PROGRAMACAO, SOMENTE_LOGO, TELA_LIMPA }
     private lateinit var startLiveButton: Button
     private lateinit var stopLiveButton: Button
+    private lateinit var muteRtmpButton: Button
+    private var rtmpAudioMuted = false
     private lateinit var videoPublishTestButton: Button
     private var encodedDiagnosticFrames = 0
     private lateinit var playerView: PlayerView
@@ -456,7 +458,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(streamKeyInput)
 
         val bitrateLabel = TextView(this).apply {
-            text = "Perfil planejado (vídeo + áudio; transmissão ainda indisponível)"
+            text = "Perfil RTMP de referência (vídeo + áudio; ZCast em teste)"
             setTextColor(Color.DKGRAY)
             textSize = 12f
             setPadding(0, dp(6), 0, dp(2))
@@ -547,6 +549,27 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(stopLiveButton)
 
+        val mixerTitle = TextView(this).apply {
+            text = "MIXER DE ÁUDIO — SAÍDA RTMP"
+            setTextColor(gold)
+            textSize = 14f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, dp(10), 0, dp(4))
+        }
+        root.addView(mixerTitle)
+        muteRtmpButton = button("SILENCIAR ÁUDIO DO CANAL ZCAST")
+        muteRtmpButton.setOnClickListener {
+            rtmpAudioMuted = !rtmpAudioMuted
+            rtmpVideoTestSession?.setAudioMuted(rtmpAudioMuted)
+            muteRtmpButton.text = if (rtmpAudioMuted)
+                "REATIVAR ÁUDIO DO CANAL ZCAST"
+            else "SILENCIAR ÁUDIO DO CANAL ZCAST"
+            status.text = if (rtmpAudioMuted)
+                "MIXER: áudio RTMP silenciado; a prévia do celular continua com som."
+            else "MIXER: áudio RTMP reativado."
+        }
+        root.addView(muteRtmpButton)
+
         val liveInfo = TextView(this).apply {
             text = "TRANSMISSÃO CONTÍNUA EXPERIMENTAL: apenas para o segundo canal ZCast, enquanto o aplicativo estiver aberto. Não altera o primeiro canal Vox. Pare antes de sair do aplicativo."
             textSize = 12f
@@ -567,7 +590,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.19 • DUAS FONTES M3U8 + CENAS • REDE NOVELAS"
+            text = "VERSÃO 0.20 • MIXER DE ÁUDIO RTMP + CENAS • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -944,6 +967,7 @@ class MainActivity : AppCompatActivity() {
                             // cópia legível no codificador RTMP é obrigatório.
                             val bitmap = currentSceneLogo()
                             rtmpVideoTestSession = session
+                            session.setAudioMuted(rtmpAudioMuted)
                             session.start(
                                 bitmap, currentSceneLowerThird(), currentSceneTicker()
                             )
