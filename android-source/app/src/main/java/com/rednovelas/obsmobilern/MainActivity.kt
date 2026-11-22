@@ -47,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var quickMuteButton: Button
     private lateinit var quickLogoButton: Button
     private lateinit var quickTickerButton: Button
+    private lateinit var quickLowerThirdButton: Button
     private var rtmpAudioMuted = false
     private var rtmpAudioVolumePercent = 100
     private lateinit var broadcastMonitor: TextView
@@ -205,6 +206,7 @@ class MainActivity : AppCompatActivity() {
         }
         quickLogoButton = quickControl("LOGO ON/OFF", quickGraphicsRow)
         quickTickerButton = quickControl("LETREIRO ON/OFF", quickGraphicsRow)
+        quickLowerThirdButton = quickControl("TEXTO ON/OFF", quickGraphicsRow)
         root.addView(quickGraphicsRow)
 
         transmissionStateLabel = TextView(this).apply {
@@ -470,6 +472,7 @@ class MainActivity : AppCompatActivity() {
             else "TEXTO INFERIOR: oculto, mantendo a mensagem salva."
         }
         root.addView(lowerThirdVisibilityButton)
+        quickLowerThirdButton.setOnClickListener { lowerThirdVisibilityButton.performClick() }
 
         val tickerInput = EditText(this).apply {
             hint = "Texto rolante (ex.: Acompanhe a programação da Rede Novelas)"
@@ -850,7 +853,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.40 • CONTROLES RÁPIDOS DE LOGO E LETREIRO • REDE NOVELAS"
+            text = "VERSÃO 0.41 • MESA RÁPIDA DE ELEMENTOS GRÁFICOS • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
