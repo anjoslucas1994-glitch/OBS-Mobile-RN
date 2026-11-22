@@ -94,7 +94,13 @@ internal class HlsAacRtmpBridge(
                         val buffer = ByteBuffer.wrap(pcm)
                         while (buffer.hasRemaining() && running.get()) {
                             val consumed = encoder.queuePcm(buffer, clock.timestampUs(), 1000)
-                            if (consumed > 0) clock.advancePcmBytes(consumed)
+                            if (consumed > 0) {
+                                clock.advancePcmBytes(consumed)
+                            } else {
+                                // Codificador temporariamente sem buffer disponível.
+                                // Evita laço ocupado que consome CPU e aquece o celular.
+                                Thread.sleep(4L)
+                            }
                             encoder.drain(
                                 timeoutUs = 0,
                                 onFormat = output::onAudioFormat,
