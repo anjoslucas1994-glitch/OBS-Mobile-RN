@@ -71,6 +71,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sourceBInput: EditText
     private lateinit var activeSourceLabel: TextView
     private var activeSource = "A"
+    private var loadedSourceUrl = ""
     private var liveSourceSwitchPending = false
     private var sourceSwitchAudioFlushesAtStart = 0L
     private var sourceSwitchAudioBuffersAfterFlush = -1L
@@ -890,7 +891,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.52 • PROTEÇÃO DO CORTE A/B CONTRA ALARMES • REDE NOVELAS"
+            text = "VERSÃO 0.53 • CORTE A/B SEM FONTE DUPLICADA • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1689,6 +1690,11 @@ class MainActivity : AppCompatActivity() {
             }
             val nextUrl = (if (source == "A") sourceInput else sourceBInput)
                 .text.toString().trim()
+            if (nextUrl == loadedSourceUrl) {
+                status.text = "CORTE NÃO NECESSÁRIO: fontes A e B usam o mesmo M3U8. Informe outro link antes de cortar."
+                quickSourceLabel.text = "FONTE $activeSource MANTIDA — MESMO ENDEREÇO M3U8"
+                return
+            }
             val server = rtmpServerInput.text.toString().trim()
             val key = streamKeyInput.text.toString().trim()
             if (!server.equals("rtmp://srv2.zcast.com.br:1935/redenovelas", true) ||
@@ -1722,6 +1728,7 @@ class MainActivity : AppCompatActivity() {
                 .putString("source_b", sourceBInput.text.toString().trim())
                 .apply()
             activeSource = source
+            loadedSourceUrl = nextUrl
             activeSourceLabel.text = "FONTE RTMP: $source — CARREGANDO..."
             runCatching {
                 exo.setMediaItem(MediaItem.fromUri(nextUrl))
@@ -1774,6 +1781,7 @@ class MainActivity : AppCompatActivity() {
             .putString("source_b", sourceBInput.text.toString().trim())
             .apply()
         player?.release()
+        loadedSourceUrl = url
         player = ExoPlayer.Builder(this, HlsAudioRenderersFactory(this, pcmTap)).build().also { exo ->
             playerView.player = exo
             exo.setMediaItem(MediaItem.fromUri(url))
