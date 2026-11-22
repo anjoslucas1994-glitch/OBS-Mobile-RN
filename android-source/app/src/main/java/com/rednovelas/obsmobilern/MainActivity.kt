@@ -27,6 +27,7 @@ class MainActivity : AppCompatActivity() {
     private var rtmpClosing = false
     private var rtmpConnecting = false
     private var rtmpDiagnosticRunning = false
+    private var rtmpDiagnosticGeneration = 0
     private var rtmpAttemptId = 0
     private lateinit var transmissionStateLabel: TextView
     private var rtmpLiveMode = false
@@ -889,7 +890,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.50 • PROTEÇÃO CONTRA RTMP SIMULTÂNEO • REDE NOVELAS"
+            text = "VERSÃO 0.51 • CANCELAMENTO SEGURO DE DIAGNÓSTICOS • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1031,6 +1032,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         rtmpDiagnosticRunning = true
+        val diagnosticGeneration = ++rtmpDiagnosticGeneration
         button.isEnabled = false
         status.text = "RTMP: testando conexão, sem publicar..."
         Thread {
@@ -1039,8 +1041,8 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             runOnUiThread {
+                if (diagnosticGeneration != rtmpDiagnosticGeneration || isFinishing || isDestroyed) return@runOnUiThread
                 rtmpDiagnosticRunning = false
-                if (isFinishing || isDestroyed) return@runOnUiThread
                 button.isEnabled = true
                 status.text = result.fold(
                     onSuccess = { "RTMP: conexão e handshake concluídos. Nenhum vídeo, áudio ou chave enviados." },
@@ -1081,6 +1083,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         rtmpDiagnosticRunning = true
+        val diagnosticGeneration = ++rtmpDiagnosticGeneration
         button.isEnabled = false
         status.text = "PUBLICAÇÃO: verificando autorização no ZCast (sem áudio/vídeo)..."
         Thread {
@@ -1090,8 +1093,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             runOnUiThread {
+                if (diagnosticGeneration != rtmpDiagnosticGeneration || isFinishing || isDestroyed) return@runOnUiThread
                 rtmpDiagnosticRunning = false
-                if (isFinishing || isDestroyed) return@runOnUiThread
                 button.isEnabled = true
                 status.text = result.fold(
                     onSuccess = { accepted ->
@@ -1873,6 +1876,11 @@ class MainActivity : AppCompatActivity() {
         rtmpVideoTestRunning = false
         rtmpClosing = false
         rtmpConnecting = false
+        // Impede que um diagnóstico concluído depois de onStop modifique
+        // o painel ou cancele o bloqueio de um diagnóstico novo.
+        rtmpDiagnosticGeneration++
+        rtmpDiagnosticRunning = false
+        if (::startLiveButton.isInitialized) setRtmpControls(false, false)
         if (::quickSourceLabel.isInitialized) {
             quickSourceLabel.text = "FORA DO AR — TESTE ZCAST ENCERRADO"
             quickSourceLabel.setTextColor(Color.DKGRAY)
