@@ -77,6 +77,12 @@ class MainActivity : AppCompatActivity() {
     private var sourceSwitchVideoReady = false
     private var sourceSwitchStage = "AGUARDANDO A NOVA FONTE"
     private var successfulSourceCuts = 0
+    private fun showSourceStopped(message: String = "FORA DO AR — TESTE ZCAST ENCERRADO") {
+        if (::quickSourceLabel.isInitialized) {
+            quickSourceLabel.text = message
+            quickSourceLabel.setTextColor(Color.DKGRAY)
+        }
+    }
     private var sourceSwitchVideoPacketsAtReady = 0L
     private var sourceSwitchAacPacketsAtReady = 0
     private var broadcastPcmSampleRate = 0
@@ -882,7 +888,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.48 • CONFIRMAÇÃO E FALHA DO CORTE A/B • REDE NOVELAS"
+            text = "VERSÃO 0.49 • ESTADO DO CORTE ENTRE SESSÕES • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1435,6 +1441,12 @@ class MainActivity : AppCompatActivity() {
         }
         broadcastPcmSampleRate = pcm.sampleRate
         broadcastPcmChannels = pcm.channels
+        liveSourceSwitchPending = false
+        sourceSwitchPcmReady = false
+        sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
+        successfulSourceCuts = 0
+        quickSourceLabel.text = "FONTE $activeSource — CONECTANDO AO ZCAST..."
+        quickSourceLabel.setTextColor(gold)
         rtmpVideoTestRunning = true
         rtmpClosing = false
         rtmpConnecting = true
@@ -1464,6 +1476,7 @@ class MainActivity : AppCompatActivity() {
                     rtmpVideoTestRunning = false
                     rtmpLiveMode = false
                     setTransmissionState("● FORA DO AR — ZCAST DE TESTE", Color.DKGRAY)
+                    showSourceStopped()
                     setRtmpControls(false, false)
                     return@runOnUiThread
                 }
@@ -1497,6 +1510,8 @@ class MainActivity : AppCompatActivity() {
                                 bitmap, currentSceneLowerThird(), currentSceneTicker(), logoLayout, tickerSpeedPercent
                             )
                             startBroadcastMonitor(session)
+                            quickSourceLabel.text = "FONTE $activeSource — PUBLICANDO LOCALMENTE (TESTE)"
+                            quickSourceLabel.setTextColor(red)
                             setTransmissionState("● PUBLICANDO — ZCAST DE TESTE (VERIFICAR RECEPÇÃO)", red)
                             if (continuous) {
                                 status.text = "AO VIVO NO ZCAST TESTE: áudio + vídeo + logo. Use PARAR TRANSMISSÃO para encerrar."
@@ -1520,6 +1535,7 @@ class MainActivity : AppCompatActivity() {
                             rtmpLiveMode = false
                             stopBroadcastMonitor()
                             setTransmissionState("● FALHA — ZCAST DE TESTE", red)
+                            showSourceStopped("FALHA NA INICIALIZAÇÃO — SEM CORTE")
                             setRtmpControls(false, false)
                             button.isEnabled = true
                             status.text = "TESTE RTMP: verifique logo e áudio do M3U8. Sessão fechada."
@@ -1529,6 +1545,7 @@ class MainActivity : AppCompatActivity() {
                         rtmpVideoTestRunning = false
                         rtmpLiveMode = false
                         setTransmissionState("● FALHA DE CONEXÃO — ZCAST DE TESTE", red)
+                        showSourceStopped("FALHA DE CONEXÃO — SEM CORTE")
                         setRtmpControls(false, false)
                         button.isEnabled = true
                         status.text = "TESTE RTMP: publicação não concluída no ZCast."
@@ -1549,6 +1566,7 @@ class MainActivity : AppCompatActivity() {
             setRtmpControls(false, false)
             setTransmissionState("● CONEXÃO CANCELADA — ZCAST DE TESTE", Color.DKGRAY)
             status.text = "Conexão cancelada. Nenhuma sessão de mídia foi iniciada."
+            showSourceStopped("CONEXÃO RTMP CANCELADA — SEM CORTE")
             button.isEnabled = true
             return
         }
@@ -1575,6 +1593,7 @@ class MainActivity : AppCompatActivity() {
             button.isEnabled = true
             setRtmpControls(false, false)
             setTransmissionState("● FORA DO AR — ZCAST DE TESTE", Color.DKGRAY)
+            showSourceStopped()
             return
         }
         session.stopWhenClosed {
@@ -1587,6 +1606,7 @@ class MainActivity : AppCompatActivity() {
                 button.isEnabled = true
                 setRtmpControls(false, false)
                 setTransmissionState("● FORA DO AR — ZCAST DE TESTE", Color.DKGRAY)
+                showSourceStopped()
                 status.text = "$message Pacotes AAC enviados: $audioPackets."
             }
         }
