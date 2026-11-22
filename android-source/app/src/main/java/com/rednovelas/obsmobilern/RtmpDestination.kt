@@ -3,7 +3,7 @@ package com.rednovelas.obsmobilern
 /**
  * Separa o endereço RTMP em servidor, aplicação e nome do stream.
  * A chave não deve ser exibida em logs ou mensagens.
- * Aceita somente caminhos no formato /aplicacao/stream.
+ * Servidor: /aplicacao. STREAM pode conter ?token=... no próprio nome.
  */
 internal data class RtmpDestination(
     val serverUrl: String,
@@ -24,11 +24,21 @@ internal data class RtmpDestination(
             require(segments.isNotEmpty()) { "Informe o nome da aplicação RTMP no servidor" }
             require(segments.size == 1) { "Informe o endereço do servidor sem a chave" }
             require(key.isNotBlank()) { "Chave de transmissão não informada" }
-            require(!key.contains('/') && !key.contains('?') && !key.contains('#')) {
-                "A chave deve ser informada separadamente, sem barras ou parâmetros"
-            }
-            val app = segments[0]
+            // Alguns provedores (inclusive ZCast) exigem um nome de stream
+            // acompanhado de parâmetros de autenticação, por exemplo:
+            // nomeDoStream?token=valor. O sufixo faz parte do comando RTMP
+            // publish; não deve ser anexado ao endereço do servidor.
             val streamName = key.trim()
+            require(!streamName.contains('/') && !streamName.contains('#') &&
+                !streamName.any { it.isWhitespace() } &&
+                streamName.substringBefore('?').isNotBlank()
+            ) {
+                "Chave RTMP inválida. Informe o campo STREAM completo do painel."
+            }
+            require(!streamName.endsWith('?') &&
+                (streamName.count { it == '?' } <= 1)
+            ) { "Parâmetros da chave RTMP incompletos" }
+            val app = segments[0]
             val base = "$scheme://$authority/$app"
             return RtmpDestination(base, app, streamName, base)
         }
