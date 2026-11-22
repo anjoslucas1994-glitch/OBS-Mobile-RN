@@ -33,6 +33,7 @@ internal class HlsVideoFramePipeline(
     private var logo: Bitmap? = null
     private var lowerThird = ""
     private var ticker = ""
+    private var logoLayout = LogoLayout()
 
     fun start() {
         check(Looper.myLooper() == Looper.getMainLooper()) { "Iniciar na thread principal" }
@@ -64,12 +65,14 @@ internal class HlsVideoFramePipeline(
         }
     }
 
-    fun updateGraphics(newLogo: Bitmap?, newLowerThird: String, newTicker: String) {
+    fun updateGraphics(newLogo: Bitmap?, newLowerThird: String, newTicker: String,
+                       newLogoLayout: LogoLayout = LogoLayout()) {
         check(Looper.myLooper() == Looper.getMainLooper())
         // O bitmap do logotipo deve continuar válido até a parada do pipeline.
         logo = newLogo
         lowerThird = newLowerThird
         ticker = newTicker
+        logoLayout = newLogoLayout
     }
 
     private fun scheduleNext() {
@@ -98,6 +101,7 @@ internal class HlsVideoFramePipeline(
             val text = lowerThird
             val scroll = ticker
             val currentLogo = logo
+            val currentLogoLayout = logoLayout
             // Timestamp baseado no relógio monotônico, não no número de capturas.
             // Assim atrasos do PixelCopy não aceleram artificialmente o vídeo.
             val nowNs = android.os.SystemClock.elapsedRealtimeNanos()
@@ -113,7 +117,7 @@ internal class HlsVideoFramePipeline(
                         onFormat = onVideoFormat,
                         onSample = onVideoSample
                     )
-                    encoder?.submitFrame(frame, currentLogo, text, scroll, timestamp)
+                    encoder?.submitFrame(frame, currentLogo, text, scroll, timestamp, currentLogoLayout)
                     // Copiar o buffer no callback: MediaCodec o libera ao retornar.
                     encoder?.drain(
                         timeoutUs = 0,
