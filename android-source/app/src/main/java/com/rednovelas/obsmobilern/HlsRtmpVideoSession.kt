@@ -44,11 +44,11 @@ internal class HlsRtmpVideoSession(
     )
 
     fun start(logo: Bitmap?, lowerThird: String, ticker: String,
-              logoLayout: LogoLayout = LogoLayout()) {
+              logoLayout: LogoLayout = LogoLayout(), tickerSpeedPercent: Int = 100) {
         check(Looper.myLooper() == Looper.getMainLooper()) {
             "Iniciar sessão de vídeo na thread principal"
         }
-        video.updateGraphics(logo, lowerThird, ticker, logoLayout)
+        video.updateGraphics(logo, lowerThird, ticker, logoLayout, tickerSpeedPercent)
         video.start()
         try {
             audio?.start()
@@ -59,8 +59,8 @@ internal class HlsRtmpVideoSession(
     }
 
     fun updateGraphics(logo: Bitmap?, lowerThird: String, ticker: String,
-                       logoLayout: LogoLayout = LogoLayout()) {
-        video.updateGraphics(logo, lowerThird, ticker, logoLayout)
+                       logoLayout: LogoLayout = LogoLayout(), tickerSpeedPercent: Int = 100) {
+        video.updateGraphics(logo, lowerThird, ticker, logoLayout, tickerSpeedPercent)
     }
 
     fun stopWhenClosed(onClosed: () -> Unit) {
