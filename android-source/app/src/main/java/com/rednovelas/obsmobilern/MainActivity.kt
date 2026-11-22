@@ -687,7 +687,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.25 • POSIÇÃO E TAMANHO DA LOGO • REDE NOVELAS"
+            text = "VERSÃO 0.26 • LETREIRO ROLANTE REAL • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
