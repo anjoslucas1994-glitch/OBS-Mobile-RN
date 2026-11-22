@@ -26,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     private var rtmpVideoTestRunning = false
     private var rtmpClosing = false
     private var rtmpConnecting = false
+    private var rtmpDiagnosticRunning = false
     private var rtmpAttemptId = 0
     private lateinit var transmissionStateLabel: TextView
     private var rtmpLiveMode = false
@@ -888,7 +889,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.49 • ESTADO DO CORTE ENTRE SESSÕES • REDE NOVELAS"
+            text = "VERSÃO 0.50 • PROTEÇÃO CONTRA RTMP SIMULTÂNEO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1004,6 +1005,10 @@ class MainActivity : AppCompatActivity() {
      * Somente destinos separados do canal HLS atual são aceitos.
      */
     private fun testRtmpHandshake(button: Button) {
+        if (rtmpVideoTestRunning || rtmpConnecting || rtmpClosing || rtmpDiagnosticRunning) {
+            status.text = "DIAGNÓSTICO: finalize primeiro a transmissão ou o teste RTMP anterior."
+            return
+        }
         val server = rtmpServerInput.text.toString().trim()
         // O diagnóstico não precisa da chave real. Não a lê nem armazena.
         val placeholder = "diagnostico-sem-publicacao"
@@ -1025,6 +1030,7 @@ class MainActivity : AppCompatActivity() {
             status.text = "RTMP: ${error.message}"
             return
         }
+        rtmpDiagnosticRunning = true
         button.isEnabled = false
         status.text = "RTMP: testando conexão, sem publicar..."
         Thread {
@@ -1033,6 +1039,8 @@ class MainActivity : AppCompatActivity() {
                 true
             }
             runOnUiThread {
+                rtmpDiagnosticRunning = false
+                if (isFinishing || isDestroyed) return@runOnUiThread
                 button.isEnabled = true
                 status.text = result.fold(
                     onSuccess = { "RTMP: conexão e handshake concluídos. Nenhum vídeo, áudio ou chave enviados." },
@@ -1047,6 +1055,10 @@ class MainActivity : AppCompatActivity() {
      * Fecha o socket ao final. Não envia pacotes de áudio ou vídeo.
      */
     private fun testRtmpPublish(button: Button) {
+        if (rtmpVideoTestRunning || rtmpConnecting || rtmpClosing || rtmpDiagnosticRunning) {
+            status.text = "PUBLICAÇÃO: finalize primeiro a transmissão ou outro teste RTMP."
+            return
+        }
         val server = rtmpServerInput.text.toString().trim()
         val source = sourceInput.text.toString().trim()
         val key = streamKeyInput.text.toString().trim()
@@ -1068,6 +1080,7 @@ class MainActivity : AppCompatActivity() {
             status.text = "PUBLICAÇÃO: ${error.message}"
             return
         }
+        rtmpDiagnosticRunning = true
         button.isEnabled = false
         status.text = "PUBLICAÇÃO: verificando autorização no ZCast (sem áudio/vídeo)..."
         Thread {
@@ -1077,6 +1090,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             runOnUiThread {
+                rtmpDiagnosticRunning = false
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 button.isEnabled = true
                 status.text = result.fold(
@@ -1402,7 +1416,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startRtmpVideo(button: Button, continuous: Boolean) {
-        if (rtmpVideoTestRunning || rtmpClosing || encoderDiagnostic != null || clipPipeline != null ||
+        if (rtmpVideoTestRunning || rtmpConnecting || rtmpClosing ||
+            rtmpDiagnosticRunning || encoderDiagnostic != null || clipPipeline != null ||
             player?.playbackState != Player.STATE_READY
         ) {
             status.text = "TESTE RTMP: finalize outros testes e carregue a prévia primeiro."
