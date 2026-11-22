@@ -22,10 +22,35 @@ internal class HlsAacRtmpBridge(
 ) : AutoCloseable {
     private val running = AtomicBoolean(false)
     private val muted = AtomicBoolean(false)
+    private val volumePercent = AtomicInteger(100)
 
     /** Silencia só a saída AAC RTMP, não o som local da prévia. */
     fun setMuted(value: Boolean) { muted.set(value) }
     fun isMuted(): Boolean = muted.get()
+
+    /** 0–100%; evita amplificação e clipping do áudio do canal de testes. */
+    fun setVolumePercent(value: Int) { volumePercent.set(value.coerceIn(0, 100)) }
+    fun getVolumePercent(): Int = volumePercent.get()
+
+    private fun applyPcmVolume(bytes: ByteArray, level: Int) {
+        if (level == 100) return
+        if (level == 0) {
+            bytes.fill(0)
+            return
+        }
+        // PCM16 little-endian intercalado. Converte cada amostra sem alterar
+        // frequência, canais ou duração, preservando a sincronização do AAC.
+        var index = 0
+        while (index + 1 < bytes.size) {
+            val low = bytes[index].toInt() and 0xff
+            val high = bytes[index + 1].toInt()
+            val sample = ((high shl 8) or low).toShort().toInt()
+            val scaled = sample * level / 100
+            bytes[index] = (scaled and 0xff).toByte()
+            bytes[index + 1] = (scaled shr 8).toByte()
+            index += 2
+        }
+    }
     private val queuedPcm = ArrayBlockingQueue<ByteArray>(32)
     private val audioPackets = AtomicInteger(0)
     private var thread: Thread? = null
@@ -49,7 +74,7 @@ internal class HlsAacRtmpBridge(
                 // quando houver atraso de rede para evitar travar o vídeo.
                 if (bytes.size % frameBytes == 0) {
                     // O PCM é uma cópia independente: mutar não altera o som da prévia.
-                    if (muted.get()) bytes.fill(0)
+                    applyPcmVolume(bytes, if (muted.get()) 0 else volumePercent.get())
                     if (!queuedPcm.offer(bytes)) {
                         queuedPcm.poll()
                         queuedPcm.offer(bytes)
