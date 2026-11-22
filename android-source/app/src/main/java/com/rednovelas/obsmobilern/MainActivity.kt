@@ -981,7 +981,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.58 • CHECAGEM DE FONTE SEM TRANSMITIR • REDE NOVELAS"
+            text = "VERSÃO 0.59 • VERIFICAÇÃO ANTES DE INICIAR RTMP • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1526,6 +1526,14 @@ class MainActivity : AppCompatActivity() {
         val server = rtmpServerInput.text.toString().trim()
         val key = streamKeyInput.text.toString().trim()
         val source = if (activeSource == "A") sourceInput.text.toString().trim() else sourceBInput.text.toString().trim()
+        if (source != loadedSourceUrl || loadedSourceUrl.isBlank()) {
+            status.text = "TESTE RTMP BLOQUEADO: endereço da fonte foi alterado. Toque CARREGAR PRÉVIA antes de iniciar."
+            return
+        }
+        if (player?.isPlaying != true) {
+            status.text = "TESTE RTMP BLOQUEADO: a prévia não está reproduzindo. Confira o vídeo e tente novamente."
+            return
+        }
         if (!server.equals("rtmp://srv2.zcast.com.br:1935/redenovelas", ignoreCase = true)) {
             status.text = "TESTE RTMP: saída permitida somente no segundo canal ZCast."
             return
@@ -1548,10 +1556,14 @@ class MainActivity : AppCompatActivity() {
             return
         }
         val pcm = pcmTap.snapshot()
-        if (pcm.bytes == 0L || pcm.encoding != android.media.AudioFormat.ENCODING_PCM_16BIT ||
+        val now = android.os.SystemClock.elapsedRealtime()
+        val recentPcm = pcm.lastBufferAtElapsedMs > 0L &&
+            now - pcm.lastBufferAtElapsedMs in 0L..3_000L
+        if (!recentPcm || pcm.bytes == 0L ||
+            pcm.encoding != android.media.AudioFormat.ENCODING_PCM_16BIT ||
             pcm.sampleRate !in listOf(32000, 44100, 48000) || pcm.channels !in 1..2
         ) {
-            status.text = "TESTE RTMP: áudio real ainda indisponível. Reproduza o M3U8 com som e teste novamente."
+            status.text = "TESTE RTMP: áudio PCM recente e compatível não detectado. Verifique a fonte M3U8 com som."
             return
         }
         broadcastPcmSampleRate = pcm.sampleRate
