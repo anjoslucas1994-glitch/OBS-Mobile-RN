@@ -52,6 +52,9 @@ internal class HlsAacRtmpBridge(
         }
     }
     private val queuedPcm = ArrayBlockingQueue<ByteArray>(32)
+    private val sourceCutLock = Any()
+    private var waitForAudioFlushAfterCut = false
+    private var audioFlushCountAtCut = 0L
     private val audioPackets = AtomicInteger(0)
     private var thread: Thread? = null
 
@@ -60,7 +63,11 @@ internal class HlsAacRtmpBridge(
      *  Um buffer já consumido pelo encoder não pode ser recuperado aqui.
      */
     fun discardQueuedPcmBeforeCut() {
-        queuedPcm.clear()
+        synchronized(sourceCutLock) {
+            audioFlushCountAtCut = tap.snapshot().flushes
+            waitForAudioFlushAfterCut = true
+            queuedPcm.clear()
+        }
     }
 
     val packetCount: Int get() = audioPackets.get()
@@ -83,9 +90,18 @@ internal class HlsAacRtmpBridge(
                 if (bytes.size % frameBytes == 0) {
                     // O PCM é uma cópia independente: mutar não altera o som da prévia.
                     applyPcmVolume(bytes, if (muted.get()) 0 else volumePercent.get())
-                    if (!queuedPcm.offer(bytes)) {
-                        queuedPcm.poll()
-                        queuedPcm.offer(bytes)
+                    synchronized(sourceCutLock) {
+                        if (waitForAudioFlushAfterCut) {
+                            if (tap.snapshot().flushes <= audioFlushCountAtCut) {
+                                // Não aceitar novos buffers da fonte anterior.
+                                return@synchronized
+                            }
+                            waitForAudioFlushAfterCut = false
+                        }
+                        if (!queuedPcm.offer(bytes)) {
+                            queuedPcm.poll()
+                            queuedPcm.offer(bytes)
+                        }
                     }
                 }
             }
