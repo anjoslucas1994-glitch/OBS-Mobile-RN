@@ -27,6 +27,7 @@ class MainActivity : AppCompatActivity() {
     private var rtmpLiveMode = false
     private var selectedScene = SceneMode.PROGRAMACAO
     private var logoLayout = LogoLayout()
+    private var tickerSpeedPercent = 100
     private enum class SceneMode { PROGRAMACAO, SOMENTE_LOGO, TELA_LIMPA }
     private lateinit var startLiveButton: Button
     private lateinit var stopLiveButton: Button
@@ -387,6 +388,28 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(tickerButton)
 
+        val tickerSpeedLabel = TextView(this).apply {
+            text = "VELOCIDADE DO LETREIRO: 100%"
+            textSize = 12f
+            setTextColor(red)
+            setPadding(0, dp(6), 0, dp(2))
+        }
+        root.addView(tickerSpeedLabel)
+        val tickerSpeedSlider = SeekBar(this).apply {
+            max = 225
+            progress = tickerSpeedPercent - 25
+        }
+        tickerSpeedSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                tickerSpeedPercent = progress + 25
+                tickerSpeedLabel.text = "VELOCIDADE DO LETREIRO: ${tickerSpeedPercent}%"
+                refreshActiveBroadcastGraphics()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        root.addView(tickerSpeedSlider)
+
         overlayLabel.text = overlayText.text.toString()
         overlayLabel.visibility = if (overlayLabel.text.isNullOrEmpty()) View.GONE else View.VISIBLE
         tickerLabel.text = tickerInput.text.toString()
@@ -687,7 +710,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.26 • LETREIRO ROLANTE REAL • REDE NOVELAS"
+            text = "VERSÃO 0.27 • VELOCIDADE DO LETREIRO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -976,7 +999,8 @@ class MainActivity : AppCompatActivity() {
                 currentSceneLogo(),
                 currentSceneLowerThird(),
                 currentSceneTicker(),
-                logoLayout
+                logoLayout,
+                tickerSpeedPercent
             )
         }.onFailure {
             status.text = "GRÁFICOS: imagem não atualizada; confira a logo selecionada."
@@ -1137,7 +1161,7 @@ class MainActivity : AppCompatActivity() {
                             session.setAudioMuted(rtmpAudioMuted)
                             session.setAudioVolumePercent(rtmpAudioVolumePercent)
                             session.start(
-                                bitmap, currentSceneLowerThird(), currentSceneTicker(), logoLayout
+                                bitmap, currentSceneLowerThird(), currentSceneTicker(), logoLayout, tickerSpeedPercent
                             )
                             startBroadcastMonitor(session)
                             if (continuous) {
