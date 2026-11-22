@@ -73,6 +73,9 @@ class MainActivity : AppCompatActivity() {
     private var sourceSwitchAudioFlushesAtStart = 0L
     private var sourceSwitchAudioBuffersAfterFlush = -1L
     private var sourceSwitchPcmReady = false
+    private var sourceSwitchStartedAtMs = 0L
+    private var sourceSwitchVideoReady = false
+    private var sourceSwitchStage = "AGUARDANDO A NOVA FONTE"
     private var sourceSwitchVideoPacketsAtReady = 0L
     private var sourceSwitchAacPacketsAtReady = 0
     private var broadcastPcmSampleRate = 0
@@ -878,7 +881,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.46 • CORTE A/B CONFIRMA H.264 E AAC • REDE NOVELAS"
+            text = "VERSÃO 0.47 • ETAPAS DO CORTE A/B • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1271,6 +1274,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     if (!sourceSwitchPcmReady) {
                         sourceSwitchPcmReady = true
+                        sourceSwitchStage = "ÁUDIO PCM PRONTO; AGUARDANDO H.264 E AAC"
                         sourceSwitchVideoPacketsAtReady = session.videoPacketCount
                         sourceSwitchAacPacketsAtReady = session.audioPacketCount
                         quickSourceLabel.text =
@@ -1287,6 +1291,12 @@ class MainActivity : AppCompatActivity() {
                     previousAudioPackets = currentAudioPackets
                     lastAudioProgressMs = now
                 }
+                if (liveSourceSwitchPending) {
+                    val switchSeconds = ((now - sourceSwitchStartedAtMs) / 1000L)
+                        .coerceAtLeast(0L)
+                    quickSourceLabel.text =
+                        "CORTE $activeSource: $sourceSwitchStage (${switchSeconds}s / 12s)"
+                }
                 if (liveSourceSwitchPending && sourceSwitchPcmReady &&
                     playbackState == Player.STATE_READY &&
                     currentVideoPackets > sourceSwitchVideoPacketsAtReady &&
@@ -1294,6 +1304,7 @@ class MainActivity : AppCompatActivity() {
                 ) {
                     liveSourceSwitchPending = false
                     sourceSwitchPcmReady = false
+                    sourceSwitchStage = "CORTE CONCLUÍDO LOCALMENTE"
                     sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
                     quickSourceLabel.text = "FONTE NO TESTE ZCAST: $activeSource"
                     activeSourceLabel.text = "FONTE RTMP ATIVA: $activeSource"
@@ -1637,6 +1648,9 @@ class MainActivity : AppCompatActivity() {
             sourceSwitchAudioFlushesAtStart = pcmTap.snapshot().flushes
             sourceSwitchAudioBuffersAfterFlush = -1L
             sourceSwitchPcmReady = false
+            sourceSwitchVideoReady = false
+            sourceSwitchStage = "AGUARDANDO A NOVA FONTE"
+            sourceSwitchStartedAtMs = android.os.SystemClock.elapsedRealtime()
             liveSourceSwitchPending = true
             quickSourceLabel.text = "CORTE A/B: CARREGANDO FONTE $source..."
             sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
@@ -1646,7 +1660,7 @@ class MainActivity : AppCompatActivity() {
                 ) {
                     liveSourceSwitchPending = false
                     stopRtmpVideoTest(startLiveButton,
-                        "CORTE A/B: fonte $source não carregou em 12 segundos. Teste ZCast encerrado.")
+                        "CORTE A/B: tempo limite de 12s na etapa '$sourceSwitchStage' da fonte $source. Teste ZCast encerrado.")
                 }
             }, 12_000L)
             status.text = "CORTE EXPERIMENTAL: carregando fonte $source na saída ZCast..."
@@ -1717,6 +1731,8 @@ class MainActivity : AppCompatActivity() {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (player !== exo) return
                     if (liveSourceSwitchPending && playbackState == Player.STATE_READY) {
+                        sourceSwitchVideoReady = true
+                        sourceSwitchStage = "VÍDEO PRONTO; AGUARDANDO ÁUDIO PCM"
                         quickSourceLabel.text = "FONTE $activeSource: VÍDEO PRONTO — VERIFICANDO ÁUDIO..."
                     }
                     if (rtmpVideoTestRunning && !rtmpClosing &&
