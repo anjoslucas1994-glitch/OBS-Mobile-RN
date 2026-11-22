@@ -24,6 +24,7 @@ internal class HlsRtmpVideoSession(
     val audioPacketCount: Int get() = audio?.packetCount ?: 0
     fun setAudioMuted(muted: Boolean) { audio?.setMuted(muted) }
     fun isAudioMuted(): Boolean = audio?.isMuted() ?: false
+    fun setAudioVolumePercent(percent: Int) { audio?.setVolumePercent(percent) }
     private val video = HlsVideoFramePipeline(
         playerView = playerView,
         bitrate = bitrate,
