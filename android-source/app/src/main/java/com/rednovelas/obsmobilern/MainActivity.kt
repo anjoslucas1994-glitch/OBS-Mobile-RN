@@ -45,6 +45,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var quickStartButton: Button
     private lateinit var quickStopButton: Button
     private lateinit var quickMuteButton: Button
+    private lateinit var quickLogoButton: Button
+    private lateinit var quickTickerButton: Button
     private var rtmpAudioMuted = false
     private var rtmpAudioVolumePercent = 100
     private lateinit var broadcastMonitor: TextView
@@ -198,6 +200,12 @@ class MainActivity : AppCompatActivity() {
         quickStopButton = quickControl("PARAR", quickStreamRow)
         quickMuteButton = quickControl("SOM ON/OFF", quickStreamRow)
         root.addView(quickStreamRow)
+        val quickGraphicsRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        quickLogoButton = quickControl("LOGO ON/OFF", quickGraphicsRow)
+        quickTickerButton = quickControl("LETREIRO ON/OFF", quickGraphicsRow)
+        root.addView(quickGraphicsRow)
 
         transmissionStateLabel = TextView(this).apply {
             text = "● FORA DO AR — CANAL ZCAST DE TESTE"
@@ -498,6 +506,7 @@ class MainActivity : AppCompatActivity() {
                 "LETREIRO: oculto, com o texto salvo para reativar."
         }
         root.addView(tickerVisibilityButton)
+        quickTickerButton.setOnClickListener { tickerVisibilityButton.performClick() }
 
         tickerSpeedPercent = graphicPrefs.getInt("ticker_speed", 100).coerceIn(25, 250)
         val tickerSpeedLabel = TextView(this).apply {
@@ -554,6 +563,7 @@ class MainActivity : AppCompatActivity() {
                 "LOGO: oculta; imagem preservada para reativar."
         }
         root.addView(logoVisibilityButton)
+        quickLogoButton.setOnClickListener { logoVisibilityButton.performClick() }
 
         val logoControlsTitle = TextView(this).apply {
             text = "POSIÇÃO E TAMANHO DA LOGO — SAÍDA RTMP"
@@ -840,7 +850,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.39 • ALERTA DE QUEDA DE FPS • REDE NOVELAS"
+            text = "VERSÃO 0.40 • CONTROLES RÁPIDOS DE LOGO E LETREIRO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
