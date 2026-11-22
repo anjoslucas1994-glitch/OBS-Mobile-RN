@@ -309,6 +309,7 @@ class MainActivity : AppCompatActivity() {
             overlayLabel.text = value
             overlayLabel.visibility = if (value.isEmpty()) View.GONE else View.VISIBLE
             graphicPrefs.edit().putString("lower_third", value).apply()
+            refreshActiveBroadcastGraphics()
         }
         root.addView(overlayButton)
 
@@ -326,6 +327,7 @@ class MainActivity : AppCompatActivity() {
             tickerLabel.visibility = if (value.isEmpty()) View.GONE else View.VISIBLE
             tickerLabel.isSelected = true
             graphicPrefs.edit().putString("ticker", value).apply()
+            refreshActiveBroadcastGraphics()
         }
         root.addView(tickerButton)
 
@@ -734,6 +736,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun testRtmpVideoFiveSeconds(button: Button) = startRtmpVideo(button, false)
 
+    private fun refreshActiveBroadcastGraphics() {
+        val session = rtmpVideoTestSession ?: return
+        if (!rtmpVideoTestRunning) return
+        runCatching {
+            session.updateGraphics(
+                requireLogoBitmap(),
+                overlayLabel.text.toString(),
+                tickerLabel.text.toString()
+            )
+        }.onFailure {
+            status.text = "GRÁFICOS: imagem não atualizada; confira a logo selecionada."
+        }
+    }
+
     private fun setRtmpControls(running: Boolean, live: Boolean) {
         startLiveButton.isEnabled = !running
         startLiveButton.alpha = if (running) 0.5f else 1f
@@ -981,6 +997,7 @@ class MainActivity : AppCompatActivity() {
                 }.isSuccess
                 logoOverlay.setImageURI(it)
                 logoOverlay.visibility = if (logoOverlay.drawable != null) View.VISIBLE else View.GONE
+            refreshActiveBroadcastGraphics()
                 if (permissionGranted && logoOverlay.drawable != null) {
                     graphicPrefs.edit().putString("logo_uri", it.toString()).apply()
                 } else {
