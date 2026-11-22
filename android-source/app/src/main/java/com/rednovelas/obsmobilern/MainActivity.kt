@@ -840,7 +840,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.38 • TAXAS REAIS DE VÍDEO E ÁUDIO • REDE NOVELAS"
+            text = "VERSÃO 0.39 • ALERTA DE QUEDA DE FPS • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1182,6 +1182,8 @@ class MainActivity : AppCompatActivity() {
             private var rateWindowAudioPackets = 0
             private var videoFps = 0.0
             private var audioPacketsPerSecond = 0.0
+            private var lowFpsSinceMs = 0L
+            private var lowFpsWarning = false
             override fun run() {
                 if (rtmpVideoTestSession !== session || !rtmpVideoTestRunning) return
                 val now = android.os.SystemClock.elapsedRealtime()
@@ -1225,6 +1227,16 @@ class MainActivity : AppCompatActivity() {
                     rateWindowVideoPackets = currentVideoPackets
                     rateWindowAudioPackets = currentAudioPackets
                     rateWindowStartedMs = now
+                    // O codificador tenta produzir até 15 FPS. Alertar apenas
+                    // depois de vários segundos abaixo de 8 FPS, evitando
+                    // alarmes por oscilações momentâneas ou início de sessão.
+                    if (seconds >= 15 && videoFps < 8.0) {
+                        if (lowFpsSinceMs == 0L) lowFpsSinceMs = now
+                        lowFpsWarning = now - lowFpsSinceMs >= 10_000L
+                    } else {
+                        lowFpsSinceMs = 0L
+                        lowFpsWarning = false
+                    }
                 }
                 // Mudo e volume zero continuam codificando AAC silencioso.
                 // Esta verificação só acusa parada do fluxo de pacotes,
@@ -1265,14 +1277,18 @@ class MainActivity : AppCompatActivity() {
                 val measuredAudioRate = String.format(
                     java.util.Locale.ROOT, "%.1f", audioPacketsPerSecond
                 )
+                val performanceAlert = if (lowFpsWarning)
+                    "\nATENÇÃO: menos de 8 quadros/s por 10s. Verifique o aparelho e a rede."
+                else ""
                 broadcastMonitor.text =
                     "RTMP ZCAST — SESSÃO ATIVA ($elapsed)\n" +
                     "H.264: ${currentVideoPackets} quadros ($videoStatus)\n" +
                     "Ritmo do vídeo: ${measuredVideoRate} quadros/s\n" +
                     "AAC: ${currentAudioPackets} pacotes ($audioStatus)\n" +
                     "Ritmo do áudio: ${measuredAudioRate} pacotes/s\n" +
-                    "Áudio: ${if (session.isAudioMuted()) "MUDO" else "${rtmpAudioVolumePercent}%"}"
-                broadcastMonitor.setTextColor(if (videoStatus == "QUADROS ATIVOS" && audioStatus == "PACOTES ATIVOS") red else gold)
+                    "Áudio: ${if (session.isAudioMuted()) "MUDO" else "${rtmpAudioVolumePercent}%"}" +
+                    performanceAlert
+                broadcastMonitor.setTextColor(if (!lowFpsWarning && videoStatus == "QUADROS ATIVOS" && audioStatus == "PACOTES ATIVOS") red else gold)
                 broadcastHandler.postDelayed(this, 1000L)
             }
         }
