@@ -51,7 +51,7 @@ internal class CompositedVideoEncoder(
         val surface = checkNotNull(egl) { "Vídeo não iniciado" }
         val gl = checkNotNull(renderer) { "Renderizador não iniciado" }
         surface.makeCurrent()
-        val composed = compositor.compose(frame, logo, lowerThird, ticker, logoLayout)
+        val composed = compositor.compose(frame, logo, lowerThird, ticker, logoLayout, timestampNs)
         try {
             gl.draw(composed, width, height)
             surface.present(timestampNs)
