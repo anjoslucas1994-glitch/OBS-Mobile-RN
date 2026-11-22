@@ -30,8 +30,18 @@ internal class HlsAudioPcmTap {
 
     @Volatile private var pcmConsumer: ((ByteArray) -> Unit)? = null
 
+    @Synchronized
     fun setPcmConsumer(consumer: ((ByteArray) -> Unit)?) {
         pcmConsumer = consumer
+    }
+
+    /** Somente o dono atual pode remover seu callback.
+     *  Evita que o encerramento tardio de uma sessão antiga desligue
+     *  a captura PCM de uma sessão de transmissão mais recente.
+     */
+    @Synchronized
+    fun clearPcmConsumerIfSame(consumer: (ByteArray) -> Unit) {
+        if (pcmConsumer === consumer) pcmConsumer = null
     }
 
     fun resetCounters() {
