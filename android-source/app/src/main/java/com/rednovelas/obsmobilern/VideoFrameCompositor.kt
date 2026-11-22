@@ -40,7 +40,8 @@ internal class VideoFrameCompositor {
         lowerThird: String,
         ticker: String,
         logoLayout: LogoLayout = LogoLayout(),
-        timestampNs: Long = 0L
+        timestampNs: Long = 0L,
+        tickerSpeedPercent: Int = 100
     ): Bitmap {
         require(!frame.isRecycled) { "Quadro inválido" }
         val output = Bitmap.createBitmap(frame.width, frame.height, Bitmap.Config.ARGB_8888)
@@ -100,7 +101,7 @@ internal class VideoFrameCompositor {
             if (lineWidth > 0f) {
                 val cycle = width + lineWidth + width * 0.12f
                 val elapsedSeconds = (timestampNs.coerceAtLeast(0L) / 1_000_000L) / 1000.0
-                val travelled = ((elapsedSeconds * width * 0.12f) % cycle).toFloat()
+                val travelled = ((elapsedSeconds * width * 0.12f * tickerSpeedPercent.coerceIn(25, 250) / 100f) % cycle).toFloat()
                 val x = width - travelled
                 val checkpoint = canvas.save()
                 canvas.clipRect(0f, barTop, width, height)
