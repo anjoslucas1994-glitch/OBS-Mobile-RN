@@ -981,7 +981,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.65 • ISOLAMENTO DO ÁUDIO ENTRE SESSÕES • REDE NOVELAS"
+            text = "VERSÃO 0.66 • ENCERRAMENTO RTMP ISOLADO POR SESSÃO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1768,13 +1768,21 @@ class MainActivity : AppCompatActivity() {
             showSourceStopped()
             return
         }
+        val transportToClose = rtmpVideoTestTransport
+        val stoppedAttempt = rtmpAttemptId
         session.stopWhenClosed {
             val audioPackets = session.audioPacketCount
-            rtmpVideoTestTransport?.close()
-            rtmpVideoTestTransport = null
-            rtmpVideoTestRunning = false
-            rtmpClosing = false
-            if (!isFinishing && !isDestroyed) {
+            // O fechamento assíncrono pertence à sessão encerrada.
+            // Nunca fechar um transporte novo ao receber callbacks antigos.
+            transportToClose?.close()
+            runOnUiThread {
+                if (stoppedAttempt != rtmpAttemptId ||
+                    rtmpVideoTestTransport !== transportToClose ||
+                    isFinishing || isDestroyed
+                ) return@runOnUiThread
+                rtmpVideoTestTransport = null
+                rtmpVideoTestRunning = false
+                rtmpClosing = false
                 button.isEnabled = true
                 setRtmpControls(false, false)
                 setTransmissionState("● FORA DO AR — ZCAST DE TESTE", Color.DKGRAY)
