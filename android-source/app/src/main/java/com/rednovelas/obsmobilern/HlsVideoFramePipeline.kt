@@ -34,6 +34,7 @@ internal class HlsVideoFramePipeline(
     private var lowerThird = ""
     private var ticker = ""
     private var logoLayout = LogoLayout()
+    private var tickerSpeedPercent = 100
 
     fun start() {
         check(Looper.myLooper() == Looper.getMainLooper()) { "Iniciar na thread principal" }
@@ -66,13 +67,14 @@ internal class HlsVideoFramePipeline(
     }
 
     fun updateGraphics(newLogo: Bitmap?, newLowerThird: String, newTicker: String,
-                       newLogoLayout: LogoLayout = LogoLayout()) {
+                       newLogoLayout: LogoLayout = LogoLayout(), newTickerSpeedPercent: Int = 100) {
         check(Looper.myLooper() == Looper.getMainLooper())
         // O bitmap do logotipo deve continuar válido até a parada do pipeline.
         logo = newLogo
         lowerThird = newLowerThird
         ticker = newTicker
         logoLayout = newLogoLayout
+        tickerSpeedPercent = newTickerSpeedPercent.coerceIn(25, 250)
     }
 
     private fun scheduleNext() {
@@ -102,6 +104,7 @@ internal class HlsVideoFramePipeline(
             val scroll = ticker
             val currentLogo = logo
             val currentLogoLayout = logoLayout
+            val currentTickerSpeed = tickerSpeedPercent
             // Timestamp baseado no relógio monotônico, não no número de capturas.
             // Assim atrasos do PixelCopy não aceleram artificialmente o vídeo.
             val nowNs = android.os.SystemClock.elapsedRealtimeNanos()
@@ -117,7 +120,7 @@ internal class HlsVideoFramePipeline(
                         onFormat = onVideoFormat,
                         onSample = onVideoSample
                     )
-                    encoder?.submitFrame(frame, currentLogo, text, scroll, timestamp, currentLogoLayout)
+                    encoder?.submitFrame(frame, currentLogo, text, scroll, timestamp, currentLogoLayout, currentTickerSpeed)
                     // Copiar o buffer no callback: MediaCodec o libera ao retornar.
                     encoder?.drain(
                         timeoutUs = 0,
