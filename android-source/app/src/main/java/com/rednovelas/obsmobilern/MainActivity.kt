@@ -981,7 +981,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.63 • LIMPEZA DE ÁUDIO NO CORTE A/B • REDE NOVELAS"
+            text = "VERSÃO 0.64 • ÁUDIO ANTIGO BLOQUEADO NO CORTE • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
