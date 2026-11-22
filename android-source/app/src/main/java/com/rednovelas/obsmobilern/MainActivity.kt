@@ -47,6 +47,7 @@ class MainActivity : AppCompatActivity() {
     private val broadcastHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var broadcastTick: Runnable? = null
     private var broadcastStartedAtMs = 0L
+    private var hlsBufferingSinceMs = 0L
     private fun keepScreenActive(active: Boolean) {
         if (active) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -789,7 +790,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.32 • CANCELAMENTO DE CONEXÃO RTMP • REDE NOVELAS"
+            text = "VERSÃO 0.33 • DETECÇÃO DE FALHAS M3U8 • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1108,6 +1109,7 @@ class MainActivity : AppCompatActivity() {
     private fun stopBroadcastMonitor() {
         broadcastTick?.let { broadcastHandler.removeCallbacks(it) }
         broadcastTick = null
+        hlsBufferingSinceMs = 0L
         keepScreenActive(false)
         if (::broadcastMonitor.isInitialized) {
             broadcastMonitor.text = "FORA DO AR — ZCast de testes\nSessão RTMP encerrada."
@@ -1118,6 +1120,7 @@ class MainActivity : AppCompatActivity() {
     private fun startBroadcastMonitor(session: HlsRtmpVideoSession) {
         stopBroadcastMonitor()
         broadcastStartedAtMs = android.os.SystemClock.elapsedRealtime()
+        hlsBufferingSinceMs = 0L
         keepScreenActive(true)
         val tick = object : Runnable {
             private var previousVideoPackets = 0L
@@ -1126,6 +1129,24 @@ class MainActivity : AppCompatActivity() {
                 if (rtmpVideoTestSession !== session || !rtmpVideoTestRunning) return
                 val now = android.os.SystemClock.elapsedRealtime()
                 val seconds = ((now - broadcastStartedAtMs) / 1000).coerceAtLeast(0)
+                val playbackState = player?.playbackState
+                if (playbackState == Player.STATE_BUFFERING) {
+                    if (hlsBufferingSinceMs == 0L) hlsBufferingSinceMs = now
+                    if (rtmpLiveMode && now - hlsBufferingSinceMs >= 15_000L) {
+                        stopRtmpVideoTest(
+                            startLiveButton,
+                            "ALERTA: fonte M3U8 sem reprodução por 15 segundos. Teste ZCast encerrado."
+                        )
+                        return
+                    }
+                } else {
+                    hlsBufferingSinceMs = 0L
+                }
+                if (rtmpLiveMode && playbackState == Player.STATE_ENDED) {
+                    stopRtmpVideoTest(startLiveButton,
+                        "ALERTA: a fonte M3U8 terminou. Teste ZCast encerrado.")
+                    return
+                }
                 val currentVideoPackets = session.videoPacketCount
                 if (currentVideoPackets > previousVideoPackets) {
                     previousVideoPackets = currentVideoPackets
@@ -1432,6 +1453,15 @@ class MainActivity : AppCompatActivity() {
             exo.playWhenReady = true
             exo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
+                    if (player !== exo) return
+                    if (rtmpVideoTestRunning && !rtmpClosing &&
+                        playbackState == Player.STATE_ENDED && rtmpVideoTestSession != null
+                    ) {
+                        stopRtmpVideoTest(startLiveButton,
+                            "FONTE M3U8: reprodução encerrada. Transmissão de teste interrompida.")
+                        return
+                    }
+                    if (rtmpVideoTestSession != null) return
                     status.text = when (playbackState) {
                         Player.STATE_BUFFERING -> "PRÉVIA: conectando / carregando..."
                         Player.STATE_READY -> "PRÉVIA: reprodução pronta"
@@ -1440,6 +1470,12 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
+                    if (player !== exo) return
+                    if (rtmpVideoTestSession != null && !rtmpClosing) {
+                        stopRtmpVideoTest(startLiveButton,
+                            "FONTE M3U8: falha na reprodução (${error.errorCodeName}). Teste interrompido.")
+                        return
+                    }
                     status.text = "Falha ao abrir M3U8: ${error.errorCodeName}"
                 }
             })
