@@ -981,7 +981,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.61 • VERIFICAÇÃO DO APK PARA TESTES • REDE NOVELAS"
+            text = "VERSÃO 0.62 • REVALIDAÇÃO ANTES DO ENVIO RTMP • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1605,6 +1605,35 @@ class MainActivity : AppCompatActivity() {
                     setTransmissionState("● FORA DO AR — ZCAST DE TESTE", Color.DKGRAY)
                     showSourceStopped()
                     setRtmpControls(false, false)
+                    return@runOnUiThread
+                }
+                // O handshake pode levar segundos; validar novamente o estado
+                // da entrada ANTES de iniciar os codificadores e enviar mídia.
+                val selectedNow = (if (activeSource == "A") sourceInput else sourceBInput)
+                    .text.toString().trim()
+                val pcmNow = pcmTap.snapshot()
+                val audioAgeMs = android.os.SystemClock.elapsedRealtime() -
+                    pcmNow.lastBufferAtElapsedMs
+                if (result.isSuccess && (
+                    selectedNow != source || loadedSourceUrl != source ||
+                    player?.playbackState != Player.STATE_READY ||
+                    player?.isPlaying != true ||
+                    pcmNow.lastBufferAtElapsedMs <= 0L ||
+                    audioAgeMs !in 0L..3_000L ||
+                    pcmNow.sampleRate != broadcastPcmSampleRate ||
+                    pcmNow.channels != broadcastPcmChannels ||
+                    pcmNow.encoding != android.media.AudioFormat.ENCODING_PCM_16BIT
+                )) {
+                    result.getOrNull()?.first?.close()
+                    rtmpConnecting = false
+                    rtmpVideoTestRunning = false
+                    rtmpLiveMode = false
+                    setTransmissionState("● INÍCIO BLOQUEADO — ZCAST DE TESTE", gold)
+                    showSourceStopped("FONTE OU ÁUDIO MUDOU DURANTE CONEXÃO")
+                    setRtmpControls(false, false)
+                    button.isEnabled = true
+                    status.text = "RTMP CANCELADO: prévia ou áudio alterado durante conexão. " +
+                        "Reproduza a fonte e inicie o teste novamente."
                     return@runOnUiThread
                 }
                 rtmpConnecting = false
