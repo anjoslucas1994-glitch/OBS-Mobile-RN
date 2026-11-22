@@ -72,6 +72,9 @@ class MainActivity : AppCompatActivity() {
     private var liveSourceSwitchPending = false
     private var sourceSwitchAudioFlushesAtStart = 0L
     private var sourceSwitchAudioBuffersAfterFlush = -1L
+    private var sourceSwitchPcmReady = false
+    private var sourceSwitchVideoPacketsAtReady = 0L
+    private var sourceSwitchAacPacketsAtReady = 0
     private var broadcastPcmSampleRate = 0
     private var broadcastPcmChannels = 0
     private val sourceSwitchTimeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -875,7 +878,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.45 • ÁUDIO NOVO VALIDADO NO CORTE A/B • REDE NOVELAS"
+            text = "VERSÃO 0.46 • CORTE A/B CONFIRMA H.264 E AAC • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1266,11 +1269,13 @@ class MainActivity : AppCompatActivity() {
                         )
                         return
                     }
-                    liveSourceSwitchPending = false
-                    sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
-                    quickSourceLabel.text = "FONTE NO TESTE ZCAST: $activeSource"
-                    activeSourceLabel.text = "FONTE RTMP ATIVA: $activeSource"
-                    status.text = "CORTE A/B: vídeo e áudio PCM da fonte $activeSource detectados. Confira o ZCast."
+                    if (!sourceSwitchPcmReady) {
+                        sourceSwitchPcmReady = true
+                        sourceSwitchVideoPacketsAtReady = session.videoPacketCount
+                        sourceSwitchAacPacketsAtReady = session.audioPacketCount
+                        quickSourceLabel.text =
+                            "FONTE $activeSource: ÁUDIO OK — VERIFICANDO H.264 E AAC..."
+                    }
                 }
                 val currentVideoPackets = session.videoPacketCount
                 if (currentVideoPackets > previousVideoPackets) {
@@ -1281,6 +1286,19 @@ class MainActivity : AppCompatActivity() {
                 if (currentAudioPackets > previousAudioPackets) {
                     previousAudioPackets = currentAudioPackets
                     lastAudioProgressMs = now
+                }
+                if (liveSourceSwitchPending && sourceSwitchPcmReady &&
+                    playbackState == Player.STATE_READY &&
+                    currentVideoPackets > sourceSwitchVideoPacketsAtReady &&
+                    currentAudioPackets > sourceSwitchAacPacketsAtReady
+                ) {
+                    liveSourceSwitchPending = false
+                    sourceSwitchPcmReady = false
+                    sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
+                    quickSourceLabel.text = "FONTE NO TESTE ZCAST: $activeSource"
+                    activeSourceLabel.text = "FONTE RTMP ATIVA: $activeSource"
+                    status.text =
+                        "CORTE A/B: novos quadros H.264 e pacotes AAC enviados localmente. Confira a saída ZCast."
                 }
                 // Taxas locais medidas pelo crescimento dos contadores, não
                 // por configuração de FPS ou pelo estado do player remoto.
@@ -1618,6 +1636,7 @@ class MainActivity : AppCompatActivity() {
             val exo = player ?: return
             sourceSwitchAudioFlushesAtStart = pcmTap.snapshot().flushes
             sourceSwitchAudioBuffersAfterFlush = -1L
+            sourceSwitchPcmReady = false
             liveSourceSwitchPending = true
             quickSourceLabel.text = "CORTE A/B: CARREGANDO FONTE $source..."
             sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
