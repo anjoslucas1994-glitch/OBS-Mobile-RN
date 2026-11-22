@@ -32,6 +32,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var muteRtmpButton: Button
     private var rtmpAudioMuted = false
     private var rtmpAudioVolumePercent = 100
+    private lateinit var broadcastMonitor: TextView
+    private val broadcastHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var broadcastTick: Runnable? = null
+    private var broadcastStartedAtMs = 0L
     private lateinit var videoPublishTestButton: Button
     private var encodedDiagnosticFrames = 0
     private lateinit var playerView: PlayerView
@@ -550,6 +554,16 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(stopLiveButton)
 
+        broadcastMonitor = TextView(this).apply {
+            text = "FORA DO AR — ZCast de testes\nH.264: 0 quadros • AAC: 0 pacotes"
+            textSize = 12f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.DKGRAY)
+            setBackgroundColor(0xFFEFECE7.toInt())
+            setPadding(dp(10), dp(10), dp(10), dp(10))
+        }
+        root.addView(broadcastMonitor)
+
         val mixerTitle = TextView(this).apply {
             text = "MIXER DE ÁUDIO — SAÍDA RTMP"
             setTextColor(gold)
@@ -613,7 +627,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.21 • CONTROLE DE VOLUME RTMP • REDE NOVELAS"
+            text = "VERSÃO 0.22 • MONITOR DE TRANSMISSÃO RTMP • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -905,6 +919,41 @@ class MainActivity : AppCompatActivity() {
         videoPublishTestButton.isEnabled = !running
     }
 
+    private fun stopBroadcastMonitor() {
+        broadcastTick?.let { broadcastHandler.removeCallbacks(it) }
+        broadcastTick = null
+        if (::broadcastMonitor.isInitialized) {
+            broadcastMonitor.text = "FORA DO AR — ZCast de testes\\nSessão RTMP encerrada."
+            broadcastMonitor.setTextColor(Color.DKGRAY)
+        }
+    }
+
+    private fun startBroadcastMonitor(session: HlsRtmpVideoSession) {
+        stopBroadcastMonitor()
+        broadcastStartedAtMs = android.os.SystemClock.elapsedRealtime()
+        val tick = object : Runnable {
+            override fun run() {
+                if (rtmpVideoTestSession !== session || !rtmpVideoTestRunning) return
+                val seconds = ((android.os.SystemClock.elapsedRealtime() -
+                    broadcastStartedAtMs) / 1000).coerceAtLeast(0)
+                val hours = seconds / 3600
+                val minutes = (seconds % 3600) / 60
+                val rest = seconds % 60
+                val elapsed = String.format(java.util.Locale.ROOT,
+                    "%02d:%02d:%02d", hours, minutes, rest)
+                broadcastMonitor.text =
+                    "RTMP ZCAST — SESSÃO ATIVA ($elapsed)\\n" +
+                    "H.264: ${session.videoPacketCount} quadros • " +
+                    "AAC: ${session.audioPacketCount} pacotes\\n" +
+                    "Áudio: ${if (session.isAudioMuted()) "MUDO" else "${rtmpAudioVolumePercent}%"}"
+                broadcastMonitor.setTextColor(red)
+                broadcastHandler.postDelayed(this, 1000L)
+            }
+        }
+        broadcastTick = tick
+        broadcastHandler.post(tick)
+    }
+
     private fun startRtmpVideo(button: Button, continuous: Boolean) {
         if (rtmpVideoTestRunning || encoderDiagnostic != null || clipPipeline != null ||
             player?.playbackState != Player.STATE_READY
@@ -995,6 +1044,7 @@ class MainActivity : AppCompatActivity() {
                             session.start(
                                 bitmap, currentSceneLowerThird(), currentSceneTicker()
                             )
+                            startBroadcastMonitor(session)
                             if (continuous) {
                                 status.text = "AO VIVO NO ZCAST TESTE: áudio + vídeo + logo. Use PARAR TRANSMISSÃO para encerrar."
                             } else {
@@ -1035,6 +1085,7 @@ class MainActivity : AppCompatActivity() {
     private fun stopRtmpVideoTest(button: Button, message: String) {
         val session = rtmpVideoTestSession
         rtmpVideoTestSession = null
+        stopBroadcastMonitor()
         rtmpLiveMode = false
         setRtmpControls(false, false)
         if (session == null) {
@@ -1194,6 +1245,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        stopBroadcastMonitor()
         rtmpVideoTestSession?.close()
         rtmpVideoTestSession = null
         rtmpVideoTestTransport?.close()
@@ -1210,6 +1262,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        stopBroadcastMonitor()
         rtmpVideoTestSession?.close()
         rtmpVideoTestSession = null
         rtmpVideoTestTransport?.close()
