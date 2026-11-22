@@ -26,6 +26,7 @@ internal class HlsAudioPcmTap {
     private val bytesSeen = AtomicLong(0L)
     private val buffersSeen = AtomicLong(0L)
     private val flushesSeen = AtomicLong(0L)
+    private val lastBufferAtElapsedMs = AtomicLong(0L)
 
     @Volatile private var pcmConsumer: ((ByteArray) -> Unit)? = null
 
@@ -40,7 +41,8 @@ internal class HlsAudioPcmTap {
 
     fun snapshot(): Snapshot = Snapshot(
         sampleRate, channels, encoding,
-        bytesSeen.get(), buffersSeen.get(), flushesSeen.get()
+        bytesSeen.get(), buffersSeen.get(), flushesSeen.get(),
+        lastBufferAtElapsedMs.get()
     )
 
     data class Snapshot(
@@ -49,7 +51,8 @@ internal class HlsAudioPcmTap {
         val encoding: Int,
         val bytes: Long,
         val buffers: Long,
-        val flushes: Long
+        val flushes: Long,
+        val lastBufferAtElapsedMs: Long
     )
 
     val sink = object : TeeAudioProcessor.AudioBufferSink {
@@ -65,6 +68,7 @@ internal class HlsAudioPcmTap {
             // não alterar position/limit do áudio em reprodução.
             bytesSeen.addAndGet(buffer.remaining().toLong())
             buffersSeen.incrementAndGet()
+            lastBufferAtElapsedMs.set(android.os.SystemClock.elapsedRealtime())
             val consumer = pcmConsumer
             if (consumer != null && encoding == C.ENCODING_PCM_16BIT && buffer.hasRemaining()) {
                 // Copia os bytes antes de o Media3 reutilizar seu buffer.
