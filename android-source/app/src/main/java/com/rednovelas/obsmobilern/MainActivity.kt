@@ -981,7 +981,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.66 • ENCERRAMENTO RTMP ISOLADO POR SESSÃO • REDE NOVELAS"
+            text = "VERSÃO 0.67 • RELATÓRIO FINAL APÓS FECHAMENTO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1749,9 +1749,10 @@ class MainActivity : AppCompatActivity() {
         liveSourceSwitchPending = false
         sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
         val session = rtmpVideoTestSession
-        rememberLastTest(session, if (cutWasPendingAtStop)
+        val lastTestReason = if (cutWasPendingAtStop)
             "Corte A/B não confirmado; encerramento do teste"
-        else "Encerramento solicitado ou proteção automática")
+        else "Encerramento solicitado ou proteção automática"
+        rememberLastTest(session, lastTestReason)
         rtmpVideoTestSession = null
         stopBroadcastMonitor()
         rtmpLiveMode = false
@@ -1774,12 +1775,15 @@ class MainActivity : AppCompatActivity() {
             val audioPackets = session.audioPacketCount
             // O fechamento assíncrono pertence à sessão encerrada.
             // Nunca fechar um transporte novo ao receber callbacks antigos.
-            transportToClose?.close()
+            // Mesmo se o socket falhar ao fechar, o painel deve voltar
+            // ao estado seguro. A contagem final é coletada após o drain.
+            val transportClosed = runCatching { transportToClose?.close() }.isSuccess
             runOnUiThread {
                 if (stoppedAttempt != rtmpAttemptId ||
                     rtmpVideoTestTransport !== transportToClose ||
                     isFinishing || isDestroyed
                 ) return@runOnUiThread
+                rememberLastTest(session, lastTestReason)
                 rtmpVideoTestTransport = null
                 rtmpVideoTestRunning = false
                 rtmpClosing = false
@@ -1787,7 +1791,8 @@ class MainActivity : AppCompatActivity() {
                 setRtmpControls(false, false)
                 setTransmissionState("● FORA DO AR — ZCAST DE TESTE", Color.DKGRAY)
                 showSourceStopped()
-                status.text = "$message Pacotes AAC enviados: $audioPackets."
+                status.text = "$message Pacotes AAC enviados: $audioPackets." +
+                    if (transportClosed) "" else " AVISO: falha ao fechar socket RTMP."
             }
         }
     }
