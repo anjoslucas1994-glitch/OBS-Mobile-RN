@@ -25,6 +25,8 @@ class MainActivity : AppCompatActivity() {
     private var rtmpVideoTestTransport: RtmpTestTransport? = null
     private var rtmpVideoTestRunning = false
     private var rtmpLiveMode = false
+    private var selectedScene = SceneMode.PROGRAMACAO
+    private enum class SceneMode { PROGRAMACAO, SOMENTE_LOGO, TELA_LIMPA }
     private lateinit var startLiveButton: Button
     private lateinit var stopLiveButton: Button
     private lateinit var videoPublishTestButton: Button
@@ -309,6 +311,7 @@ class MainActivity : AppCompatActivity() {
             overlayLabel.text = value
             overlayLabel.visibility = if (value.isEmpty()) View.GONE else View.VISIBLE
             graphicPrefs.edit().putString("lower_third", value).apply()
+            applySelectedSceneToPreview()
             refreshActiveBroadcastGraphics()
         }
         root.addView(overlayButton)
@@ -327,6 +330,7 @@ class MainActivity : AppCompatActivity() {
             tickerLabel.visibility = if (value.isEmpty()) View.GONE else View.VISIBLE
             tickerLabel.isSelected = true
             graphicPrefs.edit().putString("ticker", value).apply()
+            applySelectedSceneToPreview()
             refreshActiveBroadcastGraphics()
         }
         root.addView(tickerButton)
@@ -345,6 +349,43 @@ class MainActivity : AppCompatActivity() {
             startActivityForResult(intent, 41)
         }
         root.addView(logoButton)
+
+        val scenesTitle = TextView(this).apply {
+            text = "MESA DE CENAS — TOQUE PARA CORTAR"
+            setTextColor(gold)
+            textSize = 14f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, dp(12), 0, dp(4))
+        }
+        root.addView(scenesTitle)
+        val currentSceneLabel = TextView(this).apply {
+            text = "CENA NO AR: PROGRAMAÇÃO COMPLETA"
+            textSize = 12f
+            setTextColor(red)
+            setPadding(0, dp(4), 0, dp(8))
+        }
+        root.addView(currentSceneLabel)
+        fun sceneButton(title: String, mode: SceneMode, displayName: String) {
+            val control = button(title)
+            control.setOnClickListener {
+                // A troca modifica a composição do próximo quadro enviado por RTMP.
+                // Não muda a origem M3U8 e não reinicia a transmissão.
+                selectedScene = mode
+                applySelectedSceneToPreview()
+                refreshActiveBroadcastGraphics()
+                currentSceneLabel.text = "CENA NO AR: $displayName"
+                status.text = if (rtmpVideoTestRunning) {
+                    "CORTE DE CENA: $displayName aplicado ao canal de testes ZCast."
+                } else {
+                    "CORTE DE CENA: $displayName selecionado na prévia. Sem transmissão."
+                }
+            }
+            root.addView(control)
+        }
+        sceneButton("CENA 1 — PROGRAMAÇÃO COMPLETA", SceneMode.PROGRAMACAO, "PROGRAMAÇÃO COMPLETA")
+        sceneButton("CENA 2 — SOMENTE LOGO", SceneMode.SOMENTE_LOGO, "SOMENTE LOGO")
+        sceneButton("CENA 3 — TELA LIMPA", SceneMode.TELA_LIMPA, "TELA LIMPA")
+        applySelectedSceneToPreview()
 
         val outputTitle = TextView(this).apply {
             text = "CONFIGURAÇÃO DE SAÍDA RTMP"
@@ -486,7 +527,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.17 • INICIAR/PARAR TRANSMISSÃO ZCAST • REDE NOVELAS"
+            text = "VERSÃO 0.18 • MESA DE CENAS + RTMP ZCAST • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -736,14 +777,34 @@ class MainActivity : AppCompatActivity() {
 
     private fun testRtmpVideoFiveSeconds(button: Button) = startRtmpVideo(button, false)
 
+    private fun applySelectedSceneToPreview() {
+        if (!::logoOverlay.isInitialized || !::overlayLabel.isInitialized ||
+            !::tickerLabel.isInitialized) return
+        logoOverlay.visibility = if (selectedScene != SceneMode.TELA_LIMPA &&
+            logoOverlay.drawable != null) View.VISIBLE else View.GONE
+        overlayLabel.visibility = if (selectedScene == SceneMode.PROGRAMACAO &&
+            overlayLabel.text.isNotBlank()) View.VISIBLE else View.GONE
+        tickerLabel.visibility = if (selectedScene == SceneMode.PROGRAMACAO &&
+            tickerLabel.text.isNotBlank()) View.VISIBLE else View.GONE
+    }
+
+    private fun currentSceneLogo(): android.graphics.Bitmap? =
+        if (selectedScene == SceneMode.TELA_LIMPA) null else requireLogoBitmap()
+
+    private fun currentSceneLowerThird(): String =
+        if (selectedScene == SceneMode.PROGRAMACAO) overlayLabel.text.toString() else ""
+
+    private fun currentSceneTicker(): String =
+        if (selectedScene == SceneMode.PROGRAMACAO) tickerLabel.text.toString() else ""
+
     private fun refreshActiveBroadcastGraphics() {
         val session = rtmpVideoTestSession ?: return
         if (!rtmpVideoTestRunning) return
         runCatching {
             session.updateGraphics(
-                requireLogoBitmap(),
-                overlayLabel.text.toString(),
-                tickerLabel.text.toString()
+                currentSceneLogo(),
+                currentSceneLowerThird(),
+                currentSceneTicker()
             )
         }.onFailure {
             status.text = "GRÁFICOS: imagem não atualizada; confira a logo selecionada."
@@ -841,10 +902,10 @@ class MainActivity : AppCompatActivity() {
                             // A imagem da prévia fica em um ImageView separado
                             // da superfície do vídeo. Por isso, desenhar uma
                             // cópia legível no codificador RTMP é obrigatório.
-                            val bitmap = requireLogoBitmap()
+                            val bitmap = currentSceneLogo()
                             rtmpVideoTestSession = session
                             session.start(
-                                bitmap, overlayLabel.text.toString(), tickerLabel.text.toString()
+                                bitmap, currentSceneLowerThird(), currentSceneTicker()
                             )
                             if (continuous) {
                                 status.text = "AO VIVO NO ZCAST TESTE: áudio + vídeo + logo. Use PARAR TRANSMISSÃO para encerrar."
@@ -997,7 +1058,8 @@ class MainActivity : AppCompatActivity() {
                 }.isSuccess
                 logoOverlay.setImageURI(it)
                 logoOverlay.visibility = if (logoOverlay.drawable != null) View.VISIBLE else View.GONE
-            refreshActiveBroadcastGraphics()
+                applySelectedSceneToPreview()
+                refreshActiveBroadcastGraphics()
                 if (permissionGranted && logoOverlay.drawable != null) {
                     graphicPrefs.edit().putString("logo_uri", it.toString()).apply()
                 } else {
