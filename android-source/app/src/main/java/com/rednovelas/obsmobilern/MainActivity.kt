@@ -48,6 +48,9 @@ class MainActivity : AppCompatActivity() {
     private var broadcastTick: Runnable? = null
     private var broadcastStartedAtMs = 0L
     private var hlsBufferingSinceMs = 0L
+    private val previewRetryHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var previewGeneration = 0
+    private var previewRetryCount = 0
     private fun keepScreenActive(active: Boolean) {
         if (active) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -267,6 +270,15 @@ class MainActivity : AppCompatActivity() {
         val loadButton = button("CARREGAR PRÉVIA")
         loadButton.setOnClickListener { loadPreview() }
         root.addView(loadButton)
+        val reconnectButton = button("RECONECTAR FONTE M3U8 (SOMENTE PRÉVIA)")
+        reconnectButton.setOnClickListener {
+            if (rtmpVideoTestRunning || rtmpClosing || rtmpConnecting) {
+                status.text = "RECONECTAR: pare a transmissão ZCast antes de reconectar a fonte."
+            } else {
+                loadPreview()
+            }
+        }
+        root.addView(reconnectButton)
 
         // Diagnóstico local: verifica a captura do quadro real sem transmitir.
         val captureTestButton = button("TESTAR CAPTURA DO VÍDEO")
@@ -790,7 +802,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.33 • DETECÇÃO DE FALHAS M3U8 • REDE NOVELAS"
+            text = "VERSÃO 0.34 • RECONECTAR PRÉVIA M3U8 • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1428,13 +1440,17 @@ class MainActivity : AppCompatActivity() {
         loadPreview()
     }
 
-    private fun loadPreview() {
-        encoderDiagnostic?.close()
-        encoderDiagnostic = null
-        if (rtmpVideoTestRunning || rtmpVideoTestSession != null) {
+    private fun loadPreview(autoRetry: Boolean = false) {
+        if (rtmpVideoTestRunning || rtmpClosing || rtmpConnecting ||
+            rtmpVideoTestSession != null) {
             status.text = "FONTE: pare a transmissão ZCast antes de recarregar a prévia."
             return
         }
+        encoderDiagnostic?.close()
+        encoderDiagnostic = null
+        if (!autoRetry) previewRetryCount = 0
+        previewRetryHandler.removeCallbacksAndMessages(null)
+        val generation = ++previewGeneration
         val url = if (activeSource == "A") sourceInput.text.toString().trim()
             else sourceBInput.text.toString().trim()
         if (!url.startsWith("https://") && !url.startsWith("http://")) {
@@ -1470,13 +1486,28 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
-                    if (player !== exo) return
+                    if (player !== exo || previewGeneration != generation) return
                     if (rtmpVideoTestSession != null && !rtmpClosing) {
                         stopRtmpVideoTest(startLiveButton,
                             "FONTE M3U8: falha na reprodução (${error.errorCodeName}). Teste interrompido.")
                         return
                     }
-                    status.text = "Falha ao abrir M3U8: ${error.errorCodeName}"
+                    if (rtmpVideoTestRunning || rtmpClosing || rtmpConnecting) {
+                        status.text = "PRÉVIA: fonte falhou durante conexão RTMP; aguarde ou cancele o teste."
+                        return
+                    }
+                    if (previewRetryCount < 3 && !isFinishing && !isDestroyed) {
+                        previewRetryCount++
+                        val delay = 2000L * (1L shl (previewRetryCount - 1))
+                        status.text = "PRÉVIA: falha M3U8. Reconexão ${previewRetryCount}/3 em ${delay / 1000}s (sem RTMP)."
+                        previewRetryHandler.postDelayed({
+                            if (previewGeneration == generation && !rtmpVideoTestRunning &&
+                                !rtmpClosing && !rtmpConnecting && !isFinishing && !isDestroyed
+                            ) loadPreview(autoRetry = true)
+                        }, delay)
+                    } else {
+                        status.text = "PRÉVIA: falha M3U8 (${error.errorCodeName}). Toque RECONECTAR."
+                    }
                 }
             })
         }
@@ -1523,6 +1554,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onStop() {
+        previewGeneration++
+        previewRetryHandler.removeCallbacksAndMessages(null)
         stopBroadcastMonitor()
         rtmpVideoTestSession?.close()
         rtmpVideoTestSession = null
@@ -1543,6 +1576,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        previewGeneration++
+        previewRetryHandler.removeCallbacksAndMessages(null)
         stopBroadcastMonitor()
         rtmpVideoTestSession?.close()
         rtmpVideoTestSession = null
