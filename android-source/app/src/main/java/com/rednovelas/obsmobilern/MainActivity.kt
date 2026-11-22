@@ -69,6 +69,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sourceBInput: EditText
     private lateinit var activeSourceLabel: TextView
     private var activeSource = "A"
+    private var liveSourceSwitchPending = false
     private lateinit var overlayText: EditText
     private lateinit var overlayLabel: TextView
     private lateinit var logoOverlay: ImageView
@@ -853,7 +854,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.41 • MESA RÁPIDA DE ELEMENTOS GRÁFICOS • REDE NOVELAS"
+            text = "VERSÃO 0.42 • CORTE EXPERIMENTAL DE FONTE A/B • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1465,6 +1466,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         rtmpClosing = true
+        liveSourceSwitchPending = false
         val session = rtmpVideoTestSession
         rtmpVideoTestSession = null
         stopBroadcastMonitor()
@@ -1532,8 +1534,50 @@ class MainActivity : AppCompatActivity() {
      * interrupção, perda de áudio e falha no encoder RTMP.
      */
     private fun selectVideoSource(source: String) {
-        if (rtmpVideoTestRunning || rtmpVideoTestSession != null) {
-            status.text = "FONTES: interrompa o teste ZCast antes de trocar de M3U8."
+        if (rtmpClosing || rtmpConnecting || liveSourceSwitchPending) {
+            status.text = "FONTES: aguarde o término da conexão, troca ou encerramento RTMP."
+            return
+        }
+        if (rtmpVideoTestRunning) {
+            // Corte experimental na MESMA instância ExoPlayer, para não
+            // desmontar PlayerView/PixelCopy nem a ponte de áudio PCM.
+            if (!rtmpLiveMode || rtmpVideoTestSession == null) {
+                status.text = "FONTES: troca ao vivo disponível somente em transmissão contínua."
+                return
+            }
+            if (source == activeSource) {
+                status.text = "FONTE $source já está selecionada."
+                return
+            }
+            val nextUrl = (if (source == "A") sourceInput else sourceBInput)
+                .text.toString().trim()
+            val server = rtmpServerInput.text.toString().trim()
+            val key = streamKeyInput.text.toString().trim()
+            if (!server.equals("rtmp://srv2.zcast.com.br:1935/redenovelas", true) ||
+                StreamDestinationGuard.inspect(nextUrl, server, key)
+                    !is StreamDestinationGuard.Result.AllowedForTesting
+            ) {
+                status.text = "CORTE BLOQUEADO: verifique a fonte e a saída ZCast de testes."
+                return
+            }
+            val exo = player ?: return
+            liveSourceSwitchPending = true
+            status.text = "CORTE EXPERIMENTAL: carregando fonte $source na saída ZCast..."
+            graphicPrefs.edit()
+                .putString("source_a", sourceInput.text.toString().trim())
+                .putString("source_b", sourceBInput.text.toString().trim())
+                .apply()
+            activeSource = source
+            activeSourceLabel.text = "FONTE RTMP: $source — CARREGANDO..."
+            runCatching {
+                exo.setMediaItem(MediaItem.fromUri(nextUrl))
+                exo.prepare()
+                exo.playWhenReady = true
+            }.onFailure {
+                liveSourceSwitchPending = false
+                stopRtmpVideoTest(startLiveButton,
+                    "CORTE: falha ao abrir fonte $source. Teste ZCast encerrado.")
+            }
             return
         }
         val current = if (activeSource == "A") sourceInput else sourceBInput
@@ -1583,6 +1627,11 @@ class MainActivity : AppCompatActivity() {
             exo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (player !== exo) return
+                    if (liveSourceSwitchPending && playbackState == Player.STATE_READY) {
+                        liveSourceSwitchPending = false
+                        activeSourceLabel.text = "FONTE RTMP ATIVA: $activeSource"
+                        status.text = "CORTE: fonte $activeSource reproduzindo. Confira áudio e imagem no ZCast."
+                    }
                     if (rtmpVideoTestRunning && !rtmpClosing &&
                         playbackState == Player.STATE_ENDED && rtmpVideoTestSession != null
                     ) {
@@ -1601,6 +1650,7 @@ class MainActivity : AppCompatActivity() {
                 override fun onPlayerError(error: androidx.media3.common.PlaybackException) {
                     if (player !== exo || previewGeneration != generation) return
                     if (rtmpVideoTestSession != null && !rtmpClosing) {
+                        liveSourceSwitchPending = false
                         stopRtmpVideoTest(startLiveButton,
                             "FONTE M3U8: falha na reprodução (${error.errorCodeName}). Teste interrompido.")
                         return
@@ -1677,6 +1727,7 @@ class MainActivity : AppCompatActivity() {
         rtmpVideoTestRunning = false
         rtmpClosing = false
         rtmpConnecting = false
+        liveSourceSwitchPending = false
         rtmpAttemptId++
         clipPipeline?.close()
         clipPipeline = null
