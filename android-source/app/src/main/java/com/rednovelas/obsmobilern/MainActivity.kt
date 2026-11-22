@@ -981,7 +981,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.60 • ERROS DE SESSÃO RTMP ISOLADOS • REDE NOVELAS"
+            text = "VERSÃO 0.61 • VERIFICAÇÃO DO APK PARA TESTES • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
