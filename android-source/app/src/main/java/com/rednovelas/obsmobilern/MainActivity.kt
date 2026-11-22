@@ -3,6 +3,9 @@ package com.rednovelas.obsmobilern
 import android.app.Activity
 import android.app.AlertDialog
 import android.content.Intent
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
@@ -265,6 +268,38 @@ class MainActivity : AppCompatActivity() {
             setPadding(dp(10), dp(10), dp(10), dp(10))
         }
         root.addView(broadcastMonitor)
+        val copyTestReportButton = button("COPIAR RELATÓRIO TÉCNICO (SEM CHAVES)")
+        copyTestReportButton.setOnClickListener {
+            val pcm = pcmTap.snapshot()
+            val stream = rtmpVideoTestSession
+            // Nunca incluir link M3U8, endereço RTMP completo ou chave/token.
+            // Os contadores são locais e não comprovam recepção no ZCast.
+            val report = buildString {
+                appendLine("OBS MOBILE RN v0.55 — RELATÓRIO DE TESTE")
+                appendLine("Saída: canal secundário ZCast (experimental)")
+                appendLine("Estado RTMP: " + when {
+                    rtmpClosing -> "ENCERRANDO"
+                    rtmpConnecting -> "CONECTANDO"
+                    rtmpVideoTestRunning -> "SESSÃO LOCAL ATIVA"
+                    else -> "FORA DO AR"
+                })
+                appendLine("Fonte selecionada: $activeSource")
+                appendLine("Corte A/B pendente: $liveSourceSwitchPending")
+                appendLine("Etapa do corte: $sourceSwitchStage")
+                appendLine("Cortes localmente confirmados: $successfulSourceCuts")
+                appendLine("Estado da prévia: ${player?.playbackState ?: "não iniciada"}")
+                appendLine("H.264: ${stream?.videoPacketCount ?: 0L} quadros locais")
+                appendLine("AAC: ${stream?.audioPacketCount ?: 0} pacotes locais")
+                appendLine("PCM: ${pcm.sampleRate} Hz, ${pcm.channels} canais, ${pcm.buffers} buffers")
+                appendLine("Áudio RTMP silenciado: $rtmpAudioMuted")
+                appendLine("Cena: ${selectedScene.name}")
+                appendLine("Endereços e credenciais: omitidos")
+            }
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            clipboard.setPrimaryClip(ClipData.newPlainText("Relatório OBS Mobile RN", report))
+            status.text = "RELATÓRIO COPIADO: cole aqui no ChatGPT para analisar o teste. Nenhuma chave RTMP foi incluída."
+        }
+        root.addView(copyTestReportButton)
 
         status = TextView(this).apply {
             text = "PRÉVIA: aguardando endereço M3U8"
@@ -891,7 +926,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.54 • VALIDAÇÃO DAS FONTES M3U8 • REDE NOVELAS"
+            text = "VERSÃO 0.55 • RELATÓRIO DE TESTES SEM CREDENCIAIS • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
