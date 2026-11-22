@@ -1,6 +1,9 @@
 package com.rednovelas.obsmobilern
 
 import android.graphics.Bitmap
+import android.media.MediaCodec
+import java.nio.ByteBuffer
+import java.util.concurrent.atomic.AtomicLong
 import android.os.Looper
 import androidx.media3.ui.PlayerView
 
@@ -20,6 +23,8 @@ internal class HlsRtmpVideoSession(
     audioTap: HlsAudioPcmTap? = null
 ) : AutoCloseable {
     private val output = EncodedRtmpOutput(transport, publishedStreamId)
+    private val videoPackets = AtomicLong(0L)
+    val videoPacketCount: Long get() = videoPackets.get()
     private val audio = audioTap?.let { tap -> HlsAacRtmpBridge(tap, output, onError) }
     val audioPacketCount: Int get() = audio?.packetCount ?: 0
     fun setAudioMuted(muted: Boolean) { audio?.setMuted(muted) }
@@ -30,7 +35,12 @@ internal class HlsRtmpVideoSession(
         bitrate = bitrate,
         onError = onError,
         onVideoFormat = output::onVideoFormat,
-        onVideoSample = output::onVideoSample
+        onVideoSample = { sample: ByteBuffer, info: MediaCodec.BufferInfo ->
+            output.onVideoSample(sample, info)
+            if (info.size > 0 && info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG == 0) {
+                videoPackets.incrementAndGet()
+            }
+        }
     )
 
     fun start(logo: Bitmap?, lowerThird: String, ticker: String) {
