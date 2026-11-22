@@ -59,6 +59,20 @@ class MainActivity : AppCompatActivity() {
     private val broadcastHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var broadcastTick: Runnable? = null
     private var broadcastStartedAtMs = 0L
+    private var lastTestVideoPackets = 0L
+    private var lastTestAudioPackets = 0
+    private var lastTestDurationSeconds = 0L
+    private var lastTestEndReason = "Nenhum teste concluído nesta execução"
+
+    private fun rememberLastTest(session: HlsRtmpVideoSession?, reason: String) {
+        if (session == null) return
+        lastTestVideoPackets = session.videoPacketCount
+        lastTestAudioPackets = session.audioPacketCount
+        lastTestDurationSeconds = ((android.os.SystemClock.elapsedRealtime() -
+            broadcastStartedAtMs) / 1000L).coerceAtLeast(0L)
+        // Motivo interno pré-definido, sem URLs ou tokens.
+        lastTestEndReason = reason
+    }
     private var hlsBufferingSinceMs = 0L
     private val previewRetryHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var previewGeneration = 0
@@ -275,7 +289,7 @@ class MainActivity : AppCompatActivity() {
             // Nunca incluir link M3U8, endereço RTMP completo ou chave/token.
             // Os contadores são locais e não comprovam recepção no ZCast.
             val report = buildString {
-                appendLine("OBS MOBILE RN v0.55 — RELATÓRIO DE TESTE")
+                appendLine("OBS MOBILE RN v0.56 — RELATÓRIO DE TESTE")
                 appendLine("Saída: canal secundário ZCast (experimental)")
                 appendLine("Estado RTMP: " + when {
                     rtmpClosing -> "ENCERRANDO"
@@ -288,8 +302,12 @@ class MainActivity : AppCompatActivity() {
                 appendLine("Etapa do corte: $sourceSwitchStage")
                 appendLine("Cortes localmente confirmados: $successfulSourceCuts")
                 appendLine("Estado da prévia: ${player?.playbackState ?: "não iniciada"}")
-                appendLine("H.264: ${stream?.videoPacketCount ?: 0L} quadros locais")
-                appendLine("AAC: ${stream?.audioPacketCount ?: 0} pacotes locais")
+                appendLine("H.264 nesta sessão: ${stream?.videoPacketCount ?: 0L} quadros locais")
+                appendLine("AAC nesta sessão: ${stream?.audioPacketCount ?: 0} pacotes locais")
+                appendLine("Último teste — H.264: $lastTestVideoPackets quadros locais")
+                appendLine("Último teste — AAC: $lastTestAudioPackets pacotes locais")
+                appendLine("Último teste — duração aproximada: ${lastTestDurationSeconds}s")
+                appendLine("Último teste — encerramento: $lastTestEndReason")
                 appendLine("PCM: ${pcm.sampleRate} Hz, ${pcm.channels} canais, ${pcm.buffers} buffers")
                 appendLine("Áudio RTMP silenciado: $rtmpAudioMuted")
                 appendLine("Cena: ${selectedScene.name}")
@@ -926,7 +944,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.55 • RELATÓRIO DE TESTES SEM CREDENCIAIS • REDE NOVELAS"
+            text = "VERSÃO 0.56 • RELATÓRIO APÓS ENCERRAR O TESTE • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1640,6 +1658,9 @@ class MainActivity : AppCompatActivity() {
         liveSourceSwitchPending = false
         sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
         val session = rtmpVideoTestSession
+        rememberLastTest(session, if (liveSourceSwitchPending)
+            "Corte A/B não confirmado; encerramento do teste"
+        else "Encerramento solicitado ou proteção automática")
         rtmpVideoTestSession = null
         stopBroadcastMonitor()
         rtmpLiveMode = false
@@ -1943,6 +1964,7 @@ class MainActivity : AppCompatActivity() {
     override fun onStop() {
         previewGeneration++
         previewRetryHandler.removeCallbacksAndMessages(null)
+        rememberLastTest(rtmpVideoTestSession, "Aplicativo saiu do primeiro plano")
         stopBroadcastMonitor()
         rtmpVideoTestSession?.close()
         rtmpVideoTestSession = null
