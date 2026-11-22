@@ -678,6 +678,45 @@ class MainActivity : AppCompatActivity() {
      * Diagnóstico de envio RTMP por 5 segundos SOMENTE no segundo canal ZCast.
      * Publica quadros H.264 compostos com logo/textos. Ainda não envia áudio.
      */
+    /**
+     * Converte a imagem efetivamente carregada no ImageView em um bitmap
+     * independente; impede o teste RTMP de avançar com logo vazia.
+     */
+    private fun requireLogoBitmap(): android.graphics.Bitmap {
+        val drawable = logoOverlay.drawable
+            ?: error("Escolha uma logo antes de enviar vídeo ao ZCast")
+        val originalBounds = android.graphics.Rect(drawable.bounds)
+        val originalAlpha = drawable.alpha
+        val width = drawable.intrinsicWidth.takeIf { it > 0 }
+            ?: logoOverlay.drawable?.bounds?.width()?.takeIf { it > 0 }
+            ?: 256
+        val height = drawable.intrinsicHeight.takeIf { it > 0 }
+            ?: logoOverlay.drawable?.bounds?.height()?.takeIf { it > 0 }
+            ?: 128
+        val ratio = minOf(1.0f, 512f / width, 512f / height)
+        val outWidth = (width * ratio).toInt().coerceAtLeast(1)
+        val outHeight = (height * ratio).toInt().coerceAtLeast(1)
+        val bitmap = android.graphics.Bitmap.createBitmap(
+            outWidth, outHeight, android.graphics.Bitmap.Config.ARGB_8888
+        )
+        try {
+            drawable.alpha = 255
+            drawable.setBounds(0, 0, outWidth, outHeight)
+            drawable.draw(android.graphics.Canvas(bitmap))
+        } finally {
+            drawable.alpha = originalAlpha
+            drawable.bounds = originalBounds
+        }
+        val pixels = IntArray(outWidth * outHeight)
+        bitmap.getPixels(pixels, 0, outWidth, 0, 0, outWidth, outHeight)
+        val visible = pixels.any { android.graphics.Color.alpha(it) > 30 }
+        if (!visible) {
+            bitmap.recycle()
+            error("A logo selecionada está transparente ou vazia")
+        }
+        return bitmap
+    }
+
     private fun testRtmpVideoFiveSeconds(button: Button) {
         if (rtmpVideoTestRunning || encoderDiagnostic != null || clipPipeline != null ||
             player?.playbackState != Player.STATE_READY
@@ -746,16 +785,10 @@ class MainActivity : AppCompatActivity() {
                                     }
                                 }
                             )
-                            val bitmap = logoOverlay.drawable?.let { drawable ->
-                                val w = drawable.intrinsicWidth.coerceIn(1, 512)
-                                val h = drawable.intrinsicHeight.coerceIn(1, 512)
-                                android.graphics.Bitmap.createBitmap(
-                                    w, h, android.graphics.Bitmap.Config.ARGB_8888
-                                ).also { out ->
-                                    drawable.setBounds(0, 0, w, h)
-                                    drawable.draw(android.graphics.Canvas(out))
-                                }
-                            }
+                            // A imagem da prévia fica em um ImageView separado
+                            // da superfície do vídeo. Por isso, desenhar uma
+                            // cópia legível no codificador RTMP é obrigatório.
+                            val bitmap = requireLogoBitmap()
                             rtmpVideoTestSession = session
                             session.start(
                                 bitmap, overlayLabel.text.toString(), tickerLabel.text.toString()
@@ -776,7 +809,7 @@ class MainActivity : AppCompatActivity() {
                             rtmpVideoTestTransport = null
                             rtmpVideoTestRunning = false
                             button.isEnabled = true
-                            status.text = "TESTE RTMP: falha ao iniciar vídeo, sessão fechada."
+                            status.text = "TESTE RTMP: verifique se a logo está carregada e visível. Sessão fechada."
                         }
                     },
                     onFailure = {
