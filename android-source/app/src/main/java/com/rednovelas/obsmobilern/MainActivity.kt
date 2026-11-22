@@ -840,7 +840,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.36 • CONTROLE DO TEXTO INFERIOR • REDE NOVELAS"
+            text = "VERSÃO 0.37 • MONITOR DE ÁUDIO AAC • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1175,6 +1175,8 @@ class MainActivity : AppCompatActivity() {
         val tick = object : Runnable {
             private var previousVideoPackets = 0L
             private var lastVideoProgressMs = android.os.SystemClock.elapsedRealtime()
+            private var previousAudioPackets = 0
+            private var lastAudioProgressMs = android.os.SystemClock.elapsedRealtime()
             override fun run() {
                 if (rtmpVideoTestSession !== session || !rtmpVideoTestRunning) return
                 val now = android.os.SystemClock.elapsedRealtime()
@@ -1202,6 +1204,23 @@ class MainActivity : AppCompatActivity() {
                     previousVideoPackets = currentVideoPackets
                     lastVideoProgressMs = now
                 }
+                val currentAudioPackets = session.audioPacketCount
+                if (currentAudioPackets > previousAudioPackets) {
+                    previousAudioPackets = currentAudioPackets
+                    lastAudioProgressMs = now
+                }
+                // Mudo e volume zero continuam codificando AAC silencioso.
+                // Esta verificação só acusa parada do fluxo de pacotes,
+                // não ausência de som no conteúdo original.
+                if (rtmpLiveMode && seconds >= 15 &&
+                    now - lastAudioProgressMs >= 12_000L
+                ) {
+                    stopRtmpVideoTest(
+                        startLiveButton,
+                        "ALERTA: nenhum pacote AAC enviado por 12 segundos. Teste ZCast encerrado."
+                    )
+                    return
+                }
                 // Após dez segundos sem H.264, encerra o envio experimental.
                 // O contador mede a codificação/envio local, não o recebimento
                 // efetivo pelo público ou pelo player da ZCast.
@@ -1221,12 +1240,14 @@ class MainActivity : AppCompatActivity() {
                     "%02d:%02d:%02d", hours, minutes, rest)
                 val videoStatus = if (now - lastVideoProgressMs > 3_000L)
                     "SEM QUADROS RECENTES" else "QUADROS ATIVOS"
+                val audioStatus = if (now - lastAudioProgressMs > 4_000L)
+                    "SEM PACOTES RECENTES" else "PACOTES ATIVOS"
                 broadcastMonitor.text =
                     "RTMP ZCAST — SESSÃO ATIVA ($elapsed)\n" +
                     "H.264: ${currentVideoPackets} quadros ($videoStatus) • " +
-                    "AAC: ${session.audioPacketCount} pacotes\n" +
+                    "AAC: ${currentAudioPackets} pacotes ($audioStatus)\n" +
                     "Áudio: ${if (session.isAudioMuted()) "MUDO" else "${rtmpAudioVolumePercent}%"}"
-                broadcastMonitor.setTextColor(if (videoStatus == "QUADROS ATIVOS") red else gold)
+                broadcastMonitor.setTextColor(if (videoStatus == "QUADROS ATIVOS" && audioStatus == "PACOTES ATIVOS") red else gold)
                 broadcastHandler.postDelayed(this, 1000L)
             }
         }
