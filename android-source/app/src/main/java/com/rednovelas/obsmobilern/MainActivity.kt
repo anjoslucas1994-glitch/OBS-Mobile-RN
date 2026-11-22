@@ -469,7 +469,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.14 • TESTE DE ÁUDIO REAL M3U8 • REDE NOVELAS"
+            text = "VERSÃO 0.15 • CORREÇÃO DA LOGO NA SAÍDA RTMP • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
