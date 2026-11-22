@@ -1649,6 +1649,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         rtmpClosing = true
+        val cutWasPendingAtStop = liveSourceSwitchPending
         if (::quickSourceLabel.isInitialized) {
             quickSourceLabel.text = if (liveSourceSwitchPending)
                 "CORTE A/B NÃO CONFIRMADO — TESTE ZCAST ENCERRANDO"
@@ -1658,7 +1659,7 @@ class MainActivity : AppCompatActivity() {
         liveSourceSwitchPending = false
         sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
         val session = rtmpVideoTestSession
-        rememberLastTest(session, if (liveSourceSwitchPending)
+        rememberLastTest(session, if (cutWasPendingAtStop)
             "Corte A/B não confirmado; encerramento do teste"
         else "Encerramento solicitado ou proteção automática")
         rtmpVideoTestSession = null
