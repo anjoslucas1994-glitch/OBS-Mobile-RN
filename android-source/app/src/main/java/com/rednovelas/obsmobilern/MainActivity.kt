@@ -33,6 +33,9 @@ class MainActivity : AppCompatActivity() {
     private var encodedDiagnosticFrames = 0
     private lateinit var playerView: PlayerView
     private lateinit var sourceInput: EditText
+    private lateinit var sourceBInput: EditText
+    private lateinit var activeSourceLabel: TextView
+    private var activeSource = "A"
     private lateinit var overlayText: EditText
     private lateinit var overlayLabel: TextView
     private lateinit var logoOverlay: ImageView
@@ -146,9 +149,46 @@ class MainActivity : AppCompatActivity() {
             hint = "Endereço de entrada M3U8"
             textSize = 13f
             setSingleLine(true)
-            setText("https://stmv7.voxtvhd.com.br/lucas3274/lucas3274/playlist.m3u8")
+            setText(graphicPrefs.getString("source_a", "https://stmv7.voxtvhd.com.br/lucas3274/lucas3274/playlist.m3u8"))
         }
         root.addView(sourceInput)
+
+        val sourcesTitle = TextView(this).apply {
+            text = "FONTES DE VÍDEO — MESA DE ENTRADAS"
+            textSize = 14f
+            setTextColor(gold)
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, dp(10), 0, dp(4))
+        }
+        root.addView(sourcesTitle)
+
+        sourceBInput = EditText(this).apply {
+            hint = "FONTE B — endereço M3U8 alternativo (opcional)"
+            textSize = 13f
+            setSingleLine(true)
+            setText(graphicPrefs.getString("source_b", ""))
+        }
+        root.addView(sourceBInput)
+
+        activeSourceLabel = TextView(this).apply {
+            text = "FONTE ATIVA: A"
+            textSize = 12f
+            setTextColor(red)
+        }
+        root.addView(activeSourceLabel)
+
+        val inputRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        fun addInputButton(text: String, selected: String) {
+            val control = button(text)
+            control.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            control.setOnClickListener { selectVideoSource(selected) }
+            inputRow.addView(control)
+        }
+        addInputButton("FONTE A", "A")
+        addInputButton("FONTE B", "B")
+        root.addView(inputRow)
 
         val loadButton = button("CARREGAR PRÉVIA")
         loadButton.setOnClickListener { loadPreview() }
@@ -527,7 +567,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.18 • MESA DE CENAS + RTMP ZCAST • REDE NOVELAS"
+            text = "VERSÃO 0.19 • DUAS FONTES M3U8 + CENAS • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -535,7 +575,7 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(footer)
 
-        listOf(sourceInput, overlayText, tickerInput, rtmpServerInput, streamKeyInput).forEach { field ->
+        listOf(sourceInput, sourceBInput, overlayText, tickerInput, rtmpServerInput, streamKeyInput).forEach { field ->
             field.setTextColor(Color.rgb(35, 35, 35))
             field.setHintTextColor(Color.rgb(105, 105, 105))
         }
@@ -828,7 +868,7 @@ class MainActivity : AppCompatActivity() {
         }
         val server = rtmpServerInput.text.toString().trim()
         val key = streamKeyInput.text.toString().trim()
-        val source = sourceInput.text.toString().trim()
+        val source = if (activeSource == "A") sourceInput.text.toString().trim() else sourceBInput.text.toString().trim()
         if (!server.equals("rtmp://srv2.zcast.com.br:1935/redenovelas", ignoreCase = true)) {
             status.text = "TESTE RTMP: saída permitida somente no segundo canal ZCast."
             return
@@ -999,14 +1039,50 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * Seleciona uma fonte de vídeo M3U8 fora do ar. Alternância durante
+     * publicação está bloqueada porque trocar o player ao vivo pode causar
+     * interrupção, perda de áudio e falha no encoder RTMP.
+     */
+    private fun selectVideoSource(source: String) {
+        if (rtmpVideoTestRunning || rtmpVideoTestSession != null) {
+            status.text = "FONTES: interrompa o teste ZCast antes de trocar de M3U8."
+            return
+        }
+        val current = if (activeSource == "A") sourceInput else sourceBInput
+        val next = if (source == "A") sourceInput else sourceBInput
+        val address = next.text.toString().trim()
+        if (!address.startsWith("https://") && !address.startsWith("http://")) {
+            status.text = "FONTE $source: informe um endereço M3U8 HTTP(S) válido."
+            return
+        }
+        graphicPrefs.edit()
+            .putString("source_a", sourceInput.text.toString().trim())
+            .putString("source_b", sourceBInput.text.toString().trim())
+            .apply()
+        activeSource = source
+        activeSourceLabel.text = "FONTE ATIVA: $source"
+        status.text = "FONTE $source selecionada. Carregando prévia..."
+        loadPreview()
+    }
+
     private fun loadPreview() {
         encoderDiagnostic?.close()
         encoderDiagnostic = null
-        val url = sourceInput.text.toString().trim()
+        if (rtmpVideoTestRunning || rtmpVideoTestSession != null) {
+            status.text = "FONTE: pare a transmissão ZCast antes de recarregar a prévia."
+            return
+        }
+        val url = if (activeSource == "A") sourceInput.text.toString().trim()
+            else sourceBInput.text.toString().trim()
         if (!url.startsWith("https://") && !url.startsWith("http://")) {
             status.text = "Informe um endereço M3U8 válido."
             return
         }
+        graphicPrefs.edit()
+            .putString("source_a", sourceInput.text.toString().trim())
+            .putString("source_b", sourceBInput.text.toString().trim())
+            .apply()
         player?.release()
         player = ExoPlayer.Builder(this, HlsAudioRenderersFactory(this, pcmTap)).build().also { exo ->
             playerView.player = exo
