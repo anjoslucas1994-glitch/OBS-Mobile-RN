@@ -25,6 +25,8 @@ class MainActivity : AppCompatActivity() {
     private var rtmpVideoTestTransport: RtmpTestTransport? = null
     private var rtmpVideoTestRunning = false
     private var rtmpClosing = false
+    private var rtmpConnecting = false
+    private var rtmpAttemptId = 0
     private lateinit var transmissionStateLabel: TextView
     private var rtmpLiveMode = false
     private var selectedScene = SceneMode.PROGRAMACAO
@@ -787,7 +789,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.31 • STATUS E BLOQUEIO DE ENCERRAMENTO • REDE NOVELAS"
+            text = "VERSÃO 0.32 • CANCELAMENTO DE CONEXÃO RTMP • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1094,13 +1096,13 @@ class MainActivity : AppCompatActivity() {
     private fun setRtmpControls(running: Boolean, live: Boolean) {
         startLiveButton.isEnabled = !running && !rtmpClosing
         startLiveButton.alpha = if (running || rtmpClosing) 0.5f else 1f
-        stopLiveButton.isEnabled = running && live && !rtmpClosing
-        stopLiveButton.alpha = if (running && live && !rtmpClosing) 1f else 0.5f
+        stopLiveButton.isEnabled = running && (live || rtmpConnecting) && !rtmpClosing
+        stopLiveButton.alpha = if (running && (live || rtmpConnecting) && !rtmpClosing) 1f else 0.5f
         videoPublishTestButton.isEnabled = !running && !rtmpClosing
         quickStartButton.isEnabled = !running && !rtmpClosing
         quickStartButton.alpha = if (running || rtmpClosing) 0.5f else 1f
-        quickStopButton.isEnabled = running && live && !rtmpClosing
-        quickStopButton.alpha = if (running && live && !rtmpClosing) 1f else 0.5f
+        quickStopButton.isEnabled = running && (live || rtmpConnecting) && !rtmpClosing
+        quickStopButton.alpha = if (running && (live || rtmpConnecting) && !rtmpClosing) 1f else 0.5f
     }
 
     private fun stopBroadcastMonitor() {
@@ -1201,6 +1203,8 @@ class MainActivity : AppCompatActivity() {
         }
         rtmpVideoTestRunning = true
         rtmpClosing = false
+        rtmpConnecting = true
+        val attempt = ++rtmpAttemptId
         rtmpLiveMode = continuous
         setTransmissionState("● CONECTANDO — ZCAST DE TESTE", gold)
         setRtmpControls(true, continuous)
@@ -1219,14 +1223,18 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             runOnUiThread {
-                if (!rtmpVideoTestRunning || isFinishing || isDestroyed) {
+                if (attempt != rtmpAttemptId || !rtmpVideoTestRunning || isFinishing || isDestroyed) {
                     result.getOrNull()?.first?.close()
+                    if (attempt != rtmpAttemptId) return@runOnUiThread
+                    rtmpConnecting = false
                     rtmpVideoTestRunning = false
                     rtmpLiveMode = false
                     setTransmissionState("● FORA DO AR — ZCAST DE TESTE", Color.DKGRAY)
                     setRtmpControls(false, false)
                     return@runOnUiThread
                 }
+                rtmpConnecting = false
+                setRtmpControls(true, continuous)
                 result.fold(
                     onSuccess = { (transport, streamId) ->
                         rtmpVideoTestTransport = transport
@@ -1298,6 +1306,18 @@ class MainActivity : AppCompatActivity() {
 
     private fun stopRtmpVideoTest(button: Button, message: String) {
         if (rtmpClosing) return
+        if (rtmpConnecting) {
+            // O resultado tardio do socket será descartado após o cancelamento.
+            rtmpAttemptId++
+            rtmpConnecting = false
+            rtmpVideoTestRunning = false
+            rtmpLiveMode = false
+            setRtmpControls(false, false)
+            setTransmissionState("● CONEXÃO CANCELADA — ZCAST DE TESTE", Color.DKGRAY)
+            status.text = "Conexão cancelada. Nenhuma sessão de mídia foi iniciada."
+            button.isEnabled = true
+            return
+        }
         rtmpClosing = true
         val session = rtmpVideoTestSession
         rtmpVideoTestSession = null
@@ -1474,6 +1494,8 @@ class MainActivity : AppCompatActivity() {
         rtmpVideoTestTransport = null
         rtmpVideoTestRunning = false
         rtmpClosing = false
+        rtmpConnecting = false
+        rtmpAttemptId++
         clipPipeline?.close()
         clipPipeline = null
         clipRecorder?.discard()
