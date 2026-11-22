@@ -891,7 +891,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.53 • CORTE A/B SEM FONTE DUPLICADA • REDE NOVELAS"
+            text = "VERSÃO 0.54 • VALIDAÇÃO DAS FONTES M3U8 • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1672,6 +1672,24 @@ class MainActivity : AppCompatActivity() {
      * publicação está bloqueada porque trocar o player ao vivo pode causar
      * interrupção, perda de áudio e falha no encoder RTMP.
      */
+    private fun invalidHlsAddressReason(address: String): String? {
+        val value = address.trim()
+        if (value.isBlank()) return "link M3U8 vazio"
+        if (value.any { it.isWhitespace() || it.isISOControl() }) {
+            return "link contém espaços ou caracteres de controle"
+        }
+        val parsed = runCatching { android.net.Uri.parse(value) }.getOrNull()
+            ?: return "endereço não reconhecido"
+        if (parsed.scheme !in listOf("http", "https")) return "use HTTP ou HTTPS"
+        if (parsed.host.isNullOrBlank() || parsed.host!!.contains(" ")) {
+            return "domínio do servidor ausente ou inválido"
+        }
+        if (parsed.port > 65535) return "porta do servidor inválida"
+        // A extensão .m3u8 não é obrigatória: alguns servidores HLS
+        // fornecem o manifesto por URLs com tokens e rotas dinâmicas.
+        return null
+    }
+
     private fun selectVideoSource(source: String) {
         if (rtmpClosing || rtmpConnecting || liveSourceSwitchPending) {
             status.text = "FONTES: aguarde o término da conexão, troca ou encerramento RTMP."
@@ -1690,6 +1708,12 @@ class MainActivity : AppCompatActivity() {
             }
             val nextUrl = (if (source == "A") sourceInput else sourceBInput)
                 .text.toString().trim()
+            val invalidReason = invalidHlsAddressReason(nextUrl)
+            if (invalidReason != null) {
+                status.text = "CORTE BLOQUEADO: fonte $source — $invalidReason. A fonte atual foi mantida."
+                quickSourceLabel.text = "CORTE RECUSADO — FONTE $activeSource MANTIDA"
+                return
+            }
             if (nextUrl == loadedSourceUrl) {
                 status.text = "CORTE NÃO NECESSÁRIO: fontes A e B usam o mesmo M3U8. Informe outro link antes de cortar."
                 quickSourceLabel.text = "FONTE $activeSource MANTIDA — MESMO ENDEREÇO M3U8"
@@ -1744,8 +1768,9 @@ class MainActivity : AppCompatActivity() {
         val current = if (activeSource == "A") sourceInput else sourceBInput
         val next = if (source == "A") sourceInput else sourceBInput
         val address = next.text.toString().trim()
-        if (!address.startsWith("https://") && !address.startsWith("http://")) {
-            status.text = "FONTE $source: informe um endereço M3U8 HTTP(S) válido."
+        val invalidReason = invalidHlsAddressReason(address)
+        if (invalidReason != null) {
+            status.text = "FONTE $source: $invalidReason."
             return
         }
         graphicPrefs.edit()
@@ -1772,8 +1797,9 @@ class MainActivity : AppCompatActivity() {
         val generation = ++previewGeneration
         val url = if (activeSource == "A") sourceInput.text.toString().trim()
             else sourceBInput.text.toString().trim()
-        if (!url.startsWith("https://") && !url.startsWith("http://")) {
-            status.text = "Informe um endereço M3U8 válido."
+        val invalidReason = invalidHlsAddressReason(url)
+        if (invalidReason != null) {
+            status.text = "PRÉVIA: $invalidReason."
             return
         }
         graphicPrefs.edit()
