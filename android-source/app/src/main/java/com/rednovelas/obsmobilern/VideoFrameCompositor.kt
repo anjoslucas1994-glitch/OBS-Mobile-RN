@@ -14,6 +14,14 @@ import android.graphics.RectF
  * cópia. Não captura ExoPlayer, não inclui áudio e não publica RTMP.
  * Não executar no thread principal durante transmissão.
  */
+internal data class LogoLayout(
+    val widthPercent: Int = 25,
+    val corner: Corner = Corner.TOP_RIGHT
+) {
+    enum class Corner { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT }
+    init { require(widthPercent in 8..35) }
+}
+
 internal class VideoFrameCompositor {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -30,7 +38,8 @@ internal class VideoFrameCompositor {
         frame: Bitmap,
         logo: Bitmap?,
         lowerThird: String,
-        ticker: String
+        ticker: String,
+        logoLayout: LogoLayout = LogoLayout()
     ): Bitmap {
         require(!frame.isRecycled) { "Quadro inválido" }
         val output = Bitmap.createBitmap(frame.width, frame.height, Bitmap.Config.ARGB_8888)
@@ -40,13 +49,18 @@ internal class VideoFrameCompositor {
         canvas.drawBitmap(frame, 0f, 0f, paint)
 
         if (logo != null && !logo.isRecycled && logo.width > 0 && logo.height > 0) {
-            val maxWidth = width * 0.25f
-            val maxHeight = height * 0.19f
+            val maxWidth = width * logoLayout.widthPercent / 100f
+            val maxHeight = height * 0.22f
             val scale = minOf(maxWidth / logo.width, maxHeight / logo.height)
             val targetWidth = logo.width * scale
             val targetHeight = logo.height * scale
-            val left = width - targetWidth - width * 0.035f
-            val top = height * 0.045f
+            val isLeft = logoLayout.corner == LogoLayout.Corner.TOP_LEFT ||
+                logoLayout.corner == LogoLayout.Corner.BOTTOM_LEFT
+            val isBottom = logoLayout.corner == LogoLayout.Corner.BOTTOM_LEFT ||
+                logoLayout.corner == LogoLayout.Corner.BOTTOM_RIGHT
+            val left = if (isLeft) width * 0.035f else width - targetWidth - width * 0.035f
+            // Manter a região inferior das tarjas de texto livre.
+            val top = if (isBottom) height * 0.77f - targetHeight else height * 0.045f
             // Uma base discreta dá contraste a logos brancas/transparentes
             // sobre imagens claras. Ela também confirma visualmente a região
             // realmente composta nos quadros codificados, não só na prévia.
