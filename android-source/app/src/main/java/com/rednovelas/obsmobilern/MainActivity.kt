@@ -24,6 +24,8 @@ class MainActivity : AppCompatActivity() {
     private var rtmpVideoTestSession: HlsRtmpVideoSession? = null
     private var rtmpVideoTestTransport: RtmpTestTransport? = null
     private var rtmpVideoTestRunning = false
+    private var rtmpClosing = false
+    private lateinit var transmissionStateLabel: TextView
     private var rtmpLiveMode = false
     private var selectedScene = SceneMode.PROGRAMACAO
     private var logoLayout = LogoLayout()
@@ -186,6 +188,15 @@ class MainActivity : AppCompatActivity() {
         quickStopButton = quickControl("PARAR", quickStreamRow)
         quickMuteButton = quickControl("SOM ON/OFF", quickStreamRow)
         root.addView(quickStreamRow)
+
+        transmissionStateLabel = TextView(this).apply {
+            text = "● FORA DO AR — CANAL ZCAST DE TESTE"
+            textSize = 13f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(Color.DKGRAY)
+            setPadding(dp(8), dp(7), dp(8), dp(5))
+        }
+        root.addView(transmissionStateLabel)
 
         broadcastMonitor = TextView(this).apply {
             text = "FORA DO AR — ZCast de testes\nH.264: 0 quadros • AAC: 0 pacotes"
@@ -776,7 +787,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.30 • MONITOR JUNTO À PRÉVIA • REDE NOVELAS"
+            text = "VERSÃO 0.31 • STATUS E BLOQUEIO DE ENCERRAMENTO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1073,16 +1084,23 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun setTransmissionState(message: String, color: Int) {
+        if (::transmissionStateLabel.isInitialized) {
+            transmissionStateLabel.text = message
+            transmissionStateLabel.setTextColor(color)
+        }
+    }
+
     private fun setRtmpControls(running: Boolean, live: Boolean) {
-        startLiveButton.isEnabled = !running
-        startLiveButton.alpha = if (running) 0.5f else 1f
-        stopLiveButton.isEnabled = running && live
-        stopLiveButton.alpha = if (running && live) 1f else 0.5f
-        videoPublishTestButton.isEnabled = !running
-        quickStartButton.isEnabled = !running
-        quickStartButton.alpha = if (running) 0.5f else 1f
-        quickStopButton.isEnabled = running && live
-        quickStopButton.alpha = if (running && live) 1f else 0.5f
+        startLiveButton.isEnabled = !running && !rtmpClosing
+        startLiveButton.alpha = if (running || rtmpClosing) 0.5f else 1f
+        stopLiveButton.isEnabled = running && live && !rtmpClosing
+        stopLiveButton.alpha = if (running && live && !rtmpClosing) 1f else 0.5f
+        videoPublishTestButton.isEnabled = !running && !rtmpClosing
+        quickStartButton.isEnabled = !running && !rtmpClosing
+        quickStartButton.alpha = if (running || rtmpClosing) 0.5f else 1f
+        quickStopButton.isEnabled = running && live && !rtmpClosing
+        quickStopButton.alpha = if (running && live && !rtmpClosing) 1f else 0.5f
     }
 
     private fun stopBroadcastMonitor() {
@@ -1144,7 +1162,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startRtmpVideo(button: Button, continuous: Boolean) {
-        if (rtmpVideoTestRunning || encoderDiagnostic != null || clipPipeline != null ||
+        if (rtmpVideoTestRunning || rtmpClosing || encoderDiagnostic != null || clipPipeline != null ||
             player?.playbackState != Player.STATE_READY
         ) {
             status.text = "TESTE RTMP: finalize outros testes e carregue a prévia primeiro."
@@ -1182,7 +1200,9 @@ class MainActivity : AppCompatActivity() {
             return
         }
         rtmpVideoTestRunning = true
+        rtmpClosing = false
         rtmpLiveMode = continuous
+        setTransmissionState("● CONECTANDO — ZCAST DE TESTE", gold)
         setRtmpControls(true, continuous)
         button.isEnabled = false
         status.text = "TESTE RTMP: autorizando segundo canal..."
@@ -1203,6 +1223,7 @@ class MainActivity : AppCompatActivity() {
                     result.getOrNull()?.first?.close()
                     rtmpVideoTestRunning = false
                     rtmpLiveMode = false
+                    setTransmissionState("● FORA DO AR — ZCAST DE TESTE", Color.DKGRAY)
                     setRtmpControls(false, false)
                     return@runOnUiThread
                 }
@@ -1234,6 +1255,7 @@ class MainActivity : AppCompatActivity() {
                                 bitmap, currentSceneLowerThird(), currentSceneTicker(), logoLayout, tickerSpeedPercent
                             )
                             startBroadcastMonitor(session)
+                            setTransmissionState("● PUBLICANDO — ZCAST DE TESTE (VERIFICAR RECEPÇÃO)", red)
                             if (continuous) {
                                 status.text = "AO VIVO NO ZCAST TESTE: áudio + vídeo + logo. Use PARAR TRANSMISSÃO para encerrar."
                             } else {
@@ -1254,6 +1276,8 @@ class MainActivity : AppCompatActivity() {
                             rtmpVideoTestTransport = null
                             rtmpVideoTestRunning = false
                             rtmpLiveMode = false
+                            stopBroadcastMonitor()
+                            setTransmissionState("● FALHA — ZCAST DE TESTE", red)
                             setRtmpControls(false, false)
                             button.isEnabled = true
                             status.text = "TESTE RTMP: verifique logo e áudio do M3U8. Sessão fechada."
@@ -1262,6 +1286,7 @@ class MainActivity : AppCompatActivity() {
                     onFailure = {
                         rtmpVideoTestRunning = false
                         rtmpLiveMode = false
+                        setTransmissionState("● FALHA DE CONEXÃO — ZCAST DE TESTE", red)
                         setRtmpControls(false, false)
                         button.isEnabled = true
                         status.text = "TESTE RTMP: publicação não concluída no ZCast."
@@ -1272,16 +1297,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopRtmpVideoTest(button: Button, message: String) {
+        if (rtmpClosing) return
+        rtmpClosing = true
         val session = rtmpVideoTestSession
         rtmpVideoTestSession = null
         stopBroadcastMonitor()
         rtmpLiveMode = false
-        setRtmpControls(false, false)
+        setTransmissionState("● ENCERRANDO — ZCAST DE TESTE", gold)
+        setRtmpControls(true, false)
         if (session == null) {
             rtmpVideoTestTransport?.close()
             rtmpVideoTestTransport = null
             rtmpVideoTestRunning = false
+            rtmpClosing = false
             button.isEnabled = true
+            setRtmpControls(false, false)
+            setTransmissionState("● FORA DO AR — ZCAST DE TESTE", Color.DKGRAY)
             return
         }
         session.stopWhenClosed {
@@ -1289,9 +1320,11 @@ class MainActivity : AppCompatActivity() {
             rtmpVideoTestTransport?.close()
             rtmpVideoTestTransport = null
             rtmpVideoTestRunning = false
+            rtmpClosing = false
             if (!isFinishing && !isDestroyed) {
                 button.isEnabled = true
                 setRtmpControls(false, false)
+                setTransmissionState("● FORA DO AR — ZCAST DE TESTE", Color.DKGRAY)
                 status.text = "$message Pacotes AAC enviados: $audioPackets."
             }
         }
@@ -1440,6 +1473,7 @@ class MainActivity : AppCompatActivity() {
         rtmpVideoTestTransport?.close()
         rtmpVideoTestTransport = null
         rtmpVideoTestRunning = false
+        rtmpClosing = false
         clipPipeline?.close()
         clipPipeline = null
         clipRecorder?.discard()
