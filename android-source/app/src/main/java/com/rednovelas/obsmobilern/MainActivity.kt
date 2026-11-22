@@ -17,6 +17,7 @@ import androidx.media3.ui.PlayerView
 
 class MainActivity : AppCompatActivity() {
     private var player: ExoPlayer? = null
+    private val pcmTap = HlsAudioPcmTap()
     private var encoderDiagnostic: HlsVideoFramePipeline? = null
     private var clipPipeline: HlsVideoFramePipeline? = null
     private var clipRecorder: LocalVideoClipRecorder? = null
@@ -255,6 +256,29 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(aacTestButton)
 
+        val hlsPcmButton = button("TESTAR ÁUDIO REAL DO M3U8 (5 SEGUNDOS)")
+        hlsPcmButton.setOnClickListener {
+            if (player?.playbackState != Player.STATE_READY) {
+                status.text = "ÁUDIO HLS: carregue a prévia antes do teste."
+            } else {
+                pcmTap.resetCounters()
+                hlsPcmButton.isEnabled = false
+                status.text = "ÁUDIO HLS: verificando PCM da reprodução..."
+                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                    hlsPcmButton.isEnabled = true
+                    val result = pcmTap.snapshot()
+                    status.text = if (result.bytes > 0L) {
+                        "ÁUDIO HLS: ${result.buffers} buffers PCM, ${result.bytes} bytes, " +
+                        "${result.sampleRate} Hz, ${result.channels} canais. Sem RTMP."
+                    } else {
+                        "ÁUDIO HLS: nenhum PCM recebido. Verifique se o canal tem som e " +
+                        "se a reprodução está ativa."
+                    }
+                }, 5000L)
+            }
+        }
+        root.addView(hlsPcmButton)
+
         val clipTestButton = button("GRAVAR MP4 COM LOGO E TEXTO (5S, SEM ÁUDIO)")
         clipTestButton.setOnClickListener { recordGraphicTest() }
         root.addView(clipTestButton)
@@ -445,7 +469,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.13 • CORREÇÃO DA CHAVE RTMP ZCAST • REDE NOVELAS"
+            text = "VERSÃO 0.14 • TESTE DE ÁUDIO REAL M3U8 • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -825,7 +849,7 @@ class MainActivity : AppCompatActivity() {
             return
         }
         player?.release()
-        player = ExoPlayer.Builder(this).build().also { exo ->
+        player = ExoPlayer.Builder(this, HlsAudioRenderersFactory(this, pcmTap)).build().also { exo ->
             playerView.player = exo
             exo.setMediaItem(MediaItem.fromUri(url))
             exo.prepare()
