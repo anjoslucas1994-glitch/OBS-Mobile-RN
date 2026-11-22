@@ -42,7 +42,8 @@ internal class CompositedVideoEncoder(
         logo: Bitmap?,
         lowerThird: String,
         ticker: String,
-        timestampNs: Long
+        timestampNs: Long,
+        logoLayout: LogoLayout = LogoLayout()
     ) {
         check(timestampNs >= 0 && timestampNs > lastTimestampNs) {
             "Timestamp de vídeo precisa ser crescente"
@@ -50,7 +51,7 @@ internal class CompositedVideoEncoder(
         val surface = checkNotNull(egl) { "Vídeo não iniciado" }
         val gl = checkNotNull(renderer) { "Renderizador não iniciado" }
         surface.makeCurrent()
-        val composed = compositor.compose(frame, logo, lowerThird, ticker)
+        val composed = compositor.compose(frame, logo, lowerThird, ticker, logoLayout)
         try {
             gl.draw(composed, width, height)
             surface.present(timestampNs)
