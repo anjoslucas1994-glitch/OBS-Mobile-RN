@@ -34,6 +34,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var startLiveButton: Button
     private lateinit var stopLiveButton: Button
     private lateinit var muteRtmpButton: Button
+    private lateinit var quickStartButton: Button
+    private lateinit var quickStopButton: Button
+    private lateinit var quickMuteButton: Button
     private var rtmpAudioMuted = false
     private var rtmpAudioVolumePercent = 100
     private lateinit var broadcastMonitor: TextView
@@ -151,6 +154,38 @@ class MainActivity : AppCompatActivity() {
         }
         previewFrame.addView(tickerLabel)
         root.addView(previewFrame)
+
+        val compactTitle = TextView(this).apply {
+            text = "MESA RÁPIDA — CONTROLES DA TRANSMISSÃO"
+            textSize = 13f
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setTextColor(gold)
+            setPadding(0, dp(9), 0, dp(4))
+        }
+        root.addView(compactTitle)
+        val quickScenesRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        fun quickControl(label: String, row: LinearLayout): Button {
+            val control = button(label)
+            control.textSize = 11f
+            control.layoutParams = LinearLayout.LayoutParams(
+                0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f
+            ).apply { setMargins(dp(2), 0, dp(2), 0) }
+            row.addView(control)
+            return control
+        }
+        val quickSceneProgram = quickControl("CENA 1", quickScenesRow)
+        val quickSceneLogo = quickControl("CENA 2", quickScenesRow)
+        val quickSceneClean = quickControl("LIMPA", quickScenesRow)
+        root.addView(quickScenesRow)
+        val quickStreamRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        quickStartButton = quickControl("INICIAR", quickStreamRow)
+        quickStopButton = quickControl("PARAR", quickStreamRow)
+        quickMuteButton = quickControl("SOM ON/OFF", quickStreamRow)
+        root.addView(quickStreamRow)
 
         status = TextView(this).apply {
             text = "PRÉVIA: aguardando endereço M3U8"
@@ -516,7 +551,7 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, dp(4), 0, dp(8))
         }
         root.addView(currentSceneLabel)
-        fun sceneButton(title: String, mode: SceneMode, displayName: String) {
+        fun sceneButton(title: String, mode: SceneMode, displayName: String): Button {
             val control = button(title)
             control.setOnClickListener {
                 // A troca modifica a composição do próximo quadro enviado por RTMP.
@@ -532,10 +567,14 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             root.addView(control)
+            return control
         }
-        sceneButton("CENA 1 — PROGRAMAÇÃO COMPLETA", SceneMode.PROGRAMACAO, "PROGRAMAÇÃO COMPLETA")
-        sceneButton("CENA 2 — SOMENTE LOGO", SceneMode.SOMENTE_LOGO, "SOMENTE LOGO")
-        sceneButton("CENA 3 — TELA LIMPA", SceneMode.TELA_LIMPA, "TELA LIMPA")
+        val sceneProgramButton = sceneButton("CENA 1 — PROGRAMAÇÃO COMPLETA", SceneMode.PROGRAMACAO, "PROGRAMAÇÃO COMPLETA")
+        val sceneLogoButton = sceneButton("CENA 2 — SOMENTE LOGO", SceneMode.SOMENTE_LOGO, "SOMENTE LOGO")
+        val sceneCleanButton = sceneButton("CENA 3 — TELA LIMPA", SceneMode.TELA_LIMPA, "TELA LIMPA")
+        quickSceneProgram.setOnClickListener { sceneProgramButton.performClick() }
+        quickSceneLogo.setOnClickListener { sceneLogoButton.performClick() }
+        quickSceneClean.setOnClickListener { sceneCleanButton.performClick() }
         applySelectedSceneToPreview()
 
         val outputTitle = TextView(this).apply {
@@ -657,6 +696,11 @@ class MainActivity : AppCompatActivity() {
             }
         }
         root.addView(stopLiveButton)
+        quickStartButton.setOnClickListener { startLiveButton.performClick() }
+        quickStopButton.setOnClickListener { stopLiveButton.performClick() }
+        quickStartButton.isEnabled = true
+        quickStopButton.isEnabled = false
+        quickStopButton.alpha = 0.5f
 
         broadcastMonitor = TextView(this).apply {
             text = "FORA DO AR — ZCast de testes\nH.264: 0 quadros • AAC: 0 pacotes"
@@ -688,6 +732,7 @@ class MainActivity : AppCompatActivity() {
             else "MIXER: áudio RTMP reativado."
         }
         root.addView(muteRtmpButton)
+        quickMuteButton.setOnClickListener { muteRtmpButton.performClick() }
 
         val volumeLabel = TextView(this).apply {
             text = "VOLUME DO CANAL ZCAST: 100%"
@@ -731,7 +776,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.28 • MOSTRAR E OCULTAR LETREIRO • REDE NOVELAS"
+            text = "VERSÃO 0.29 • MESA RÁPIDA PARA CELULAR • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1034,6 +1079,10 @@ class MainActivity : AppCompatActivity() {
         stopLiveButton.isEnabled = running && live
         stopLiveButton.alpha = if (running && live) 1f else 0.5f
         videoPublishTestButton.isEnabled = !running
+        quickStartButton.isEnabled = !running
+        quickStartButton.alpha = if (running) 0.5f else 1f
+        quickStopButton.isEnabled = running && live
+        quickStopButton.alpha = if (running && live) 1f else 0.5f
     }
 
     private fun stopBroadcastMonitor() {
