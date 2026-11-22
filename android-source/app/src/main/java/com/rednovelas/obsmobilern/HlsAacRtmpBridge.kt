@@ -55,6 +55,14 @@ internal class HlsAacRtmpBridge(
     private val audioPackets = AtomicInteger(0)
     private var thread: Thread? = null
 
+    /** Remove PCM ainda na fila antes de trocar a fonte HLS ao vivo.
+     *  Não reinicia o codificador nem altera o relógio AAC.
+     *  Um buffer já consumido pelo encoder não pode ser recuperado aqui.
+     */
+    fun discardQueuedPcmBeforeCut() {
+        queuedPcm.clear()
+    }
+
     val packetCount: Int get() = audioPackets.get()
 
     fun start() {
