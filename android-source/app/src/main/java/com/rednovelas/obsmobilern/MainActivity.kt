@@ -28,6 +28,8 @@ class MainActivity : AppCompatActivity() {
     private var selectedScene = SceneMode.PROGRAMACAO
     private var logoLayout = LogoLayout()
     private var tickerSpeedPercent = 100
+    private var tickerVisible = true
+    private lateinit var tickerVisibilityButton: Button
     private enum class SceneMode { PROGRAMACAO, SOMENTE_LOGO, TELA_LIMPA }
     private lateinit var startLiveButton: Button
     private lateinit var stopLiveButton: Button
@@ -388,8 +390,26 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(tickerButton)
 
+        tickerVisible = graphicPrefs.getBoolean("ticker_visible", true)
+        tickerVisibilityButton = button(if (tickerVisible)
+            "OCULTAR LETREIRO DA TRANSMISSÃO"
+        else "MOSTRAR LETREIRO NA TRANSMISSÃO")
+        tickerVisibilityButton.setOnClickListener {
+            tickerVisible = !tickerVisible
+            graphicPrefs.edit().putBoolean("ticker_visible", tickerVisible).apply()
+            tickerVisibilityButton.text = if (tickerVisible)
+                "OCULTAR LETREIRO DA TRANSMISSÃO"
+            else "MOSTRAR LETREIRO NA TRANSMISSÃO"
+            applySelectedSceneToPreview()
+            refreshActiveBroadcastGraphics()
+            status.text = if (tickerVisible) "LETREIRO: ligado." else
+                "LETREIRO: oculto, com o texto salvo para reativar."
+        }
+        root.addView(tickerVisibilityButton)
+
+        tickerSpeedPercent = graphicPrefs.getInt("ticker_speed", 100).coerceIn(25, 250)
         val tickerSpeedLabel = TextView(this).apply {
-            text = "VELOCIDADE DO LETREIRO: 100%"
+            text = "VELOCIDADE DO LETREIRO: ${tickerSpeedPercent}%"
             textSize = 12f
             setTextColor(red)
             setPadding(0, dp(6), 0, dp(2))
@@ -402,6 +422,7 @@ class MainActivity : AppCompatActivity() {
         tickerSpeedSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
             override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                 tickerSpeedPercent = progress + 25
+                if (fromUser) graphicPrefs.edit().putInt("ticker_speed", tickerSpeedPercent).apply()
                 tickerSpeedLabel.text = "VELOCIDADE DO LETREIRO: ${tickerSpeedPercent}%"
                 refreshActiveBroadcastGraphics()
             }
@@ -710,7 +731,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.27 • VELOCIDADE DO LETREIRO • REDE NOVELAS"
+            text = "VERSÃO 0.28 • MOSTRAR E OCULTAR LETREIRO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -978,7 +999,7 @@ class MainActivity : AppCompatActivity() {
             logoOverlay.drawable != null) View.VISIBLE else View.GONE
         overlayLabel.visibility = if (selectedScene == SceneMode.PROGRAMACAO &&
             overlayLabel.text.isNotBlank()) View.VISIBLE else View.GONE
-        tickerLabel.visibility = if (selectedScene == SceneMode.PROGRAMACAO &&
+        tickerLabel.visibility = if (tickerVisible && selectedScene == SceneMode.PROGRAMACAO &&
             tickerLabel.text.isNotBlank()) View.VISIBLE else View.GONE
     }
 
@@ -989,7 +1010,7 @@ class MainActivity : AppCompatActivity() {
         if (selectedScene == SceneMode.PROGRAMACAO) overlayLabel.text.toString() else ""
 
     private fun currentSceneTicker(): String =
-        if (selectedScene == SceneMode.PROGRAMACAO) tickerLabel.text.toString() else ""
+        if (tickerVisible && selectedScene == SceneMode.PROGRAMACAO) tickerLabel.text.toString() else ""
 
     private fun refreshActiveBroadcastGraphics() {
         val session = rtmpVideoTestSession ?: return
