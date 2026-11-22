@@ -39,7 +39,8 @@ internal class VideoFrameCompositor {
         logo: Bitmap?,
         lowerThird: String,
         ticker: String,
-        logoLayout: LogoLayout = LogoLayout()
+        logoLayout: LogoLayout = LogoLayout(),
+        timestampNs: Long = 0L
     ): Bitmap {
         require(!frame.isRecycled) { "Quadro inválido" }
         val output = Bitmap.createBitmap(frame.width, frame.height, Bitmap.Config.ARGB_8888)
@@ -91,7 +92,21 @@ internal class VideoFrameCompositor {
         if (ticker.isNotBlank()) {
             val barTop = height * 0.90f
             canvas.drawRect(0f, barTop, width, height, barPaint)
-            drawFittedText(canvas, ticker, width * 0.035f, barTop + textSize * 1.35f, width * 0.93f)
+            // Movimento real embutido nos quadros H.264 transmitidos.
+            // Velocidade proporcional à largura para manter uma sensação
+            // de rolagem parecida em diferentes resoluções.
+            val line = ticker.replace("\\n", " ").trim()
+            val lineWidth = textPaint.measureText(line)
+            if (lineWidth > 0f) {
+                val cycle = width + lineWidth + width * 0.12f
+                val elapsedSeconds = (timestampNs.coerceAtLeast(0L) / 1_000_000L) / 1000.0
+                val travelled = ((elapsedSeconds * width * 0.12f) % cycle).toFloat()
+                val x = width - travelled
+                val checkpoint = canvas.save()
+                canvas.clipRect(0f, barTop, width, height)
+                canvas.drawText(line, x, barTop + textSize * 1.35f, textPaint)
+                canvas.restoreToCount(checkpoint)
+            }
         }
         return output
     }
