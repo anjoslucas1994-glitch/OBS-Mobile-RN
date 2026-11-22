@@ -40,10 +40,24 @@ internal class VideoFrameCompositor {
         canvas.drawBitmap(frame, 0f, 0f, paint)
 
         if (logo != null && !logo.isRecycled && logo.width > 0 && logo.height > 0) {
-            val targetWidth = width * 0.18f
-            val targetHeight = targetWidth * logo.height / logo.width
+            val maxWidth = width * 0.25f
+            val maxHeight = height * 0.19f
+            val scale = minOf(maxWidth / logo.width, maxHeight / logo.height)
+            val targetWidth = logo.width * scale
+            val targetHeight = logo.height * scale
             val left = width - targetWidth - width * 0.035f
-            val top = height * 0.04f
+            val top = height * 0.045f
+            // Uma base discreta dá contraste a logos brancas/transparentes
+            // sobre imagens claras. Ela também confirma visualmente a região
+            // realmente composta nos quadros codificados, não só na prévia.
+            val plate = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.argb(175, 10, 10, 10)
+            }
+            val pad = width * 0.012f
+            canvas.drawRoundRect(
+                RectF(left - pad, top - pad, left + targetWidth + pad, top + targetHeight + pad),
+                pad, pad, plate
+            )
             canvas.drawBitmap(
                 logo,
                 Rect(0, 0, logo.width, logo.height),
