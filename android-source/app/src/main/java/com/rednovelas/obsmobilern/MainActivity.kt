@@ -70,6 +70,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var activeSourceLabel: TextView
     private var activeSource = "A"
     private var liveSourceSwitchPending = false
+    private var sourceSwitchAudioBuffersAtStart = 0L
+    private var broadcastPcmSampleRate = 0
+    private var broadcastPcmChannels = 0
     private val sourceSwitchTimeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private lateinit var quickSourceLabel: TextView
     private lateinit var overlayText: EditText
@@ -871,7 +874,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.43 • CORTE A/B NA MESA RÁPIDA • REDE NOVELAS"
+            text = "VERSÃO 0.44 • VERIFICAÇÃO DE ÁUDIO NO CORTE A/B • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1237,6 +1240,28 @@ class MainActivity : AppCompatActivity() {
                         "ALERTA: a fonte M3U8 terminou. Teste ZCast encerrado.")
                     return
                 }
+                val pcmState = pcmTap.snapshot()
+                if (liveSourceSwitchPending && playbackState == Player.STATE_READY &&
+                    pcmState.buffers > sourceSwitchAudioBuffersAtStart
+                ) {
+                    if (pcmState.encoding != android.media.AudioFormat.ENCODING_PCM_16BIT ||
+                        pcmState.sampleRate != broadcastPcmSampleRate ||
+                        pcmState.channels != broadcastPcmChannels
+                    ) {
+                        liveSourceSwitchPending = false
+                        sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
+                        stopRtmpVideoTest(
+                            startLiveButton,
+                            "CORTE A/B: formato de áudio da nova fonte é diferente. Teste encerrado para evitar AAC incorreto."
+                        )
+                        return
+                    }
+                    liveSourceSwitchPending = false
+                    sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
+                    quickSourceLabel.text = "FONTE NO TESTE ZCAST: $activeSource"
+                    activeSourceLabel.text = "FONTE RTMP ATIVA: $activeSource"
+                    status.text = "CORTE A/B: vídeo e áudio PCM da fonte $activeSource detectados. Confira o ZCast."
+                }
                 val currentVideoPackets = session.videoPacketCount
                 if (currentVideoPackets > previousVideoPackets) {
                     previousVideoPackets = currentVideoPackets
@@ -1365,6 +1390,8 @@ class MainActivity : AppCompatActivity() {
             status.text = "TESTE RTMP: áudio real ainda indisponível. Reproduza o M3U8 com som e teste novamente."
             return
         }
+        broadcastPcmSampleRate = pcm.sampleRate
+        broadcastPcmChannels = pcm.channels
         rtmpVideoTestRunning = true
         rtmpClosing = false
         rtmpConnecting = true
@@ -1579,6 +1606,7 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             val exo = player ?: return
+            sourceSwitchAudioBuffersAtStart = pcmTap.snapshot().buffers
             liveSourceSwitchPending = true
             quickSourceLabel.text = "CORTE A/B: CARREGANDO FONTE $source..."
             sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
@@ -1659,11 +1687,7 @@ class MainActivity : AppCompatActivity() {
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     if (player !== exo) return
                     if (liveSourceSwitchPending && playbackState == Player.STATE_READY) {
-                        liveSourceSwitchPending = false
-                        sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
-                        quickSourceLabel.text = "FONTE NO TESTE ZCAST: $activeSource"
-                        activeSourceLabel.text = "FONTE RTMP ATIVA: $activeSource"
-                        status.text = "CORTE: fonte $activeSource reproduzindo. Confira áudio e imagem no ZCast."
+                        quickSourceLabel.text = "FONTE $activeSource: VÍDEO PRONTO — VERIFICANDO ÁUDIO..."
                     }
                     if (rtmpVideoTestRunning && !rtmpClosing &&
                         playbackState == Player.STATE_ENDED && rtmpVideoTestSession != null
