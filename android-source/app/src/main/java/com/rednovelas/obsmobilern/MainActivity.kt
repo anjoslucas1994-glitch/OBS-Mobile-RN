@@ -70,7 +70,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var activeSourceLabel: TextView
     private var activeSource = "A"
     private var liveSourceSwitchPending = false
-    private var sourceSwitchAudioBuffersAtStart = 0L
+    private var sourceSwitchAudioFlushesAtStart = 0L
+    private var sourceSwitchAudioBuffersAfterFlush = -1L
     private var broadcastPcmSampleRate = 0
     private var broadcastPcmChannels = 0
     private val sourceSwitchTimeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -874,7 +875,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.44 • VERIFICAÇÃO DE ÁUDIO NO CORTE A/B • REDE NOVELAS"
+            text = "VERSÃO 0.45 • ÁUDIO NOVO VALIDADO NO CORTE A/B • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1241,8 +1242,17 @@ class MainActivity : AppCompatActivity() {
                     return
                 }
                 val pcmState = pcmTap.snapshot()
+                if (liveSourceSwitchPending &&
+                    pcmState.flushes > sourceSwitchAudioFlushesAtStart &&
+                    sourceSwitchAudioBuffersAfterFlush < 0L
+                ) {
+                    // Só confirmar bytes produzidos depois da reinicialização
+                    // do sink de áudio da nova fonte, não buffers atrasados da anterior.
+                    sourceSwitchAudioBuffersAfterFlush = pcmState.buffers
+                }
                 if (liveSourceSwitchPending && playbackState == Player.STATE_READY &&
-                    pcmState.buffers > sourceSwitchAudioBuffersAtStart
+                    sourceSwitchAudioBuffersAfterFlush >= 0L &&
+                    pcmState.buffers > sourceSwitchAudioBuffersAfterFlush
                 ) {
                     if (pcmState.encoding != android.media.AudioFormat.ENCODING_PCM_16BIT ||
                         pcmState.sampleRate != broadcastPcmSampleRate ||
@@ -1606,7 +1616,8 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             val exo = player ?: return
-            sourceSwitchAudioBuffersAtStart = pcmTap.snapshot().buffers
+            sourceSwitchAudioFlushesAtStart = pcmTap.snapshot().flushes
+            sourceSwitchAudioBuffersAfterFlush = -1L
             liveSourceSwitchPending = true
             quickSourceLabel.text = "CORTE A/B: CARREGANDO FONTE $source..."
             sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
