@@ -840,7 +840,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.37 • MONITOR DE ÁUDIO AAC • REDE NOVELAS"
+            text = "VERSÃO 0.38 • TAXAS REAIS DE VÍDEO E ÁUDIO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1177,6 +1177,11 @@ class MainActivity : AppCompatActivity() {
             private var lastVideoProgressMs = android.os.SystemClock.elapsedRealtime()
             private var previousAudioPackets = 0
             private var lastAudioProgressMs = android.os.SystemClock.elapsedRealtime()
+            private var rateWindowStartedMs = android.os.SystemClock.elapsedRealtime()
+            private var rateWindowVideoPackets = 0L
+            private var rateWindowAudioPackets = 0
+            private var videoFps = 0.0
+            private var audioPacketsPerSecond = 0.0
             override fun run() {
                 if (rtmpVideoTestSession !== session || !rtmpVideoTestRunning) return
                 val now = android.os.SystemClock.elapsedRealtime()
@@ -1208,6 +1213,18 @@ class MainActivity : AppCompatActivity() {
                 if (currentAudioPackets > previousAudioPackets) {
                     previousAudioPackets = currentAudioPackets
                     lastAudioProgressMs = now
+                }
+                // Taxas locais medidas pelo crescimento dos contadores, não
+                // por configuração de FPS ou pelo estado do player remoto.
+                val windowDurationMs = now - rateWindowStartedMs
+                if (windowDurationMs >= 1_000L) {
+                    videoFps = (currentVideoPackets - rateWindowVideoPackets)
+                        .coerceAtLeast(0L) * 1000.0 / windowDurationMs
+                    audioPacketsPerSecond = (currentAudioPackets - rateWindowAudioPackets)
+                        .coerceAtLeast(0) * 1000.0 / windowDurationMs
+                    rateWindowVideoPackets = currentVideoPackets
+                    rateWindowAudioPackets = currentAudioPackets
+                    rateWindowStartedMs = now
                 }
                 // Mudo e volume zero continuam codificando AAC silencioso.
                 // Esta verificação só acusa parada do fluxo de pacotes,
@@ -1242,10 +1259,18 @@ class MainActivity : AppCompatActivity() {
                     "SEM QUADROS RECENTES" else "QUADROS ATIVOS"
                 val audioStatus = if (now - lastAudioProgressMs > 4_000L)
                     "SEM PACOTES RECENTES" else "PACOTES ATIVOS"
+                val measuredVideoRate = String.format(
+                    java.util.Locale.ROOT, "%.1f", videoFps
+                )
+                val measuredAudioRate = String.format(
+                    java.util.Locale.ROOT, "%.1f", audioPacketsPerSecond
+                )
                 broadcastMonitor.text =
                     "RTMP ZCAST — SESSÃO ATIVA ($elapsed)\n" +
-                    "H.264: ${currentVideoPackets} quadros ($videoStatus) • " +
+                    "H.264: ${currentVideoPackets} quadros ($videoStatus)\n" +
+                    "Ritmo do vídeo: ${measuredVideoRate} quadros/s\n" +
                     "AAC: ${currentAudioPackets} pacotes ($audioStatus)\n" +
+                    "Ritmo do áudio: ${measuredAudioRate} pacotes/s\n" +
                     "Áudio: ${if (session.isAudioMuted()) "MUDO" else "${rtmpAudioVolumePercent}%"}"
                 broadcastMonitor.setTextColor(if (videoStatus == "QUADROS ATIVOS" && audioStatus == "PACOTES ATIVOS") red else gold)
                 broadcastHandler.postDelayed(this, 1000L)
