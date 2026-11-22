@@ -34,6 +34,8 @@ class MainActivity : AppCompatActivity() {
     private var tickerSpeedPercent = 100
     private var tickerVisible = true
     private var logoVisible = true
+    private var lowerThirdVisible = true
+    private lateinit var lowerThirdVisibilityButton: Button
     private lateinit var logoVisibilityButton: Button
     private lateinit var tickerVisibilityButton: Button
     private enum class SceneMode { PROGRAMACAO, SOMENTE_LOGO, TELA_LIMPA }
@@ -444,6 +446,23 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(overlayButton)
 
+        lowerThirdVisible = graphicPrefs.getBoolean("lower_third_visible", true)
+        lowerThirdVisibilityButton = button(if (lowerThirdVisible)
+            "OCULTAR TEXTO INFERIOR"
+        else "MOSTRAR TEXTO INFERIOR")
+        lowerThirdVisibilityButton.setOnClickListener {
+            lowerThirdVisible = !lowerThirdVisible
+            graphicPrefs.edit().putBoolean("lower_third_visible", lowerThirdVisible).apply()
+            lowerThirdVisibilityButton.text = if (lowerThirdVisible)
+                "OCULTAR TEXTO INFERIOR" else "MOSTRAR TEXTO INFERIOR"
+            applySelectedSceneToPreview()
+            refreshActiveBroadcastGraphics()
+            status.text = if (lowerThirdVisible)
+                "TEXTO INFERIOR: visível na cena de programação."
+            else "TEXTO INFERIOR: oculto, mantendo a mensagem salva."
+        }
+        root.addView(lowerThirdVisibilityButton)
+
         val tickerInput = EditText(this).apply {
             hint = "Texto rolante (ex.: Acompanhe a programação da Rede Novelas)"
             textSize = 14f
@@ -821,7 +840,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.35 • LIGAR/DESLIGAR LOGO AO VIVO • REDE NOVELAS"
+            text = "VERSÃO 0.36 • CONTROLE DO TEXTO INFERIOR • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1087,7 +1106,7 @@ class MainActivity : AppCompatActivity() {
         ).apply { setMargins(dp(8), dp(8), dp(8), dp(8)) }
         logoOverlay.visibility = if (logoVisible && selectedScene != SceneMode.TELA_LIMPA &&
             logoOverlay.drawable != null) View.VISIBLE else View.GONE
-        overlayLabel.visibility = if (selectedScene == SceneMode.PROGRAMACAO &&
+        overlayLabel.visibility = if (lowerThirdVisible && selectedScene == SceneMode.PROGRAMACAO &&
             overlayLabel.text.isNotBlank()) View.VISIBLE else View.GONE
         tickerLabel.visibility = if (tickerVisible && selectedScene == SceneMode.PROGRAMACAO &&
             tickerLabel.text.isNotBlank()) View.VISIBLE else View.GONE
@@ -1097,7 +1116,7 @@ class MainActivity : AppCompatActivity() {
         if (!logoVisible || selectedScene == SceneMode.TELA_LIMPA) null else requireLogoBitmap()
 
     private fun currentSceneLowerThird(): String =
-        if (selectedScene == SceneMode.PROGRAMACAO) overlayLabel.text.toString() else ""
+        if (lowerThirdVisible && selectedScene == SceneMode.PROGRAMACAO) overlayLabel.text.toString() else ""
 
     private fun currentSceneTicker(): String =
         if (tickerVisible && selectedScene == SceneMode.PROGRAMACAO) tickerLabel.text.toString() else ""
