@@ -70,6 +70,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var activeSourceLabel: TextView
     private var activeSource = "A"
     private var liveSourceSwitchPending = false
+    private val sourceSwitchTimeoutHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private lateinit var quickSourceLabel: TextView
     private lateinit var overlayText: EditText
     private lateinit var overlayLabel: TextView
     private lateinit var logoOverlay: ImageView
@@ -195,6 +197,21 @@ class MainActivity : AppCompatActivity() {
         val quickSceneLogo = quickControl("CENA 2", quickScenesRow)
         val quickSceneClean = quickControl("LIMPA", quickScenesRow)
         root.addView(quickScenesRow)
+        val quickSourcesRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+        val quickSourceA = quickControl("CORTE FONTE A", quickSourcesRow)
+        val quickSourceB = quickControl("CORTE FONTE B", quickSourcesRow)
+        quickSourceLabel = TextView(this).apply {
+            text = "FONTE SELECIONADA: A"
+            textSize = 12f
+            setTextColor(red)
+            setPadding(dp(4), dp(3), dp(4), dp(5))
+        }
+        root.addView(quickSourcesRow)
+        root.addView(quickSourceLabel)
+        quickSourceA.setOnClickListener { selectVideoSource("A") }
+        quickSourceB.setOnClickListener { selectVideoSource("B") }
         val quickStreamRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
         }
@@ -854,7 +871,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.42 • CORTE EXPERIMENTAL DE FONTE A/B • REDE NOVELAS"
+            text = "VERSÃO 0.43 • CORTE A/B NA MESA RÁPIDA • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1467,6 +1484,7 @@ class MainActivity : AppCompatActivity() {
         }
         rtmpClosing = true
         liveSourceSwitchPending = false
+        sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
         val session = rtmpVideoTestSession
         rtmpVideoTestSession = null
         stopBroadcastMonitor()
@@ -1562,6 +1580,17 @@ class MainActivity : AppCompatActivity() {
             }
             val exo = player ?: return
             liveSourceSwitchPending = true
+            quickSourceLabel.text = "CORTE A/B: CARREGANDO FONTE $source..."
+            sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
+            sourceSwitchTimeoutHandler.postDelayed({
+                if (liveSourceSwitchPending && rtmpVideoTestSession != null &&
+                    rtmpLiveMode && !rtmpClosing
+                ) {
+                    liveSourceSwitchPending = false
+                    stopRtmpVideoTest(startLiveButton,
+                        "CORTE A/B: fonte $source não carregou em 12 segundos. Teste ZCast encerrado.")
+                }
+            }, 12_000L)
             status.text = "CORTE EXPERIMENTAL: carregando fonte $source na saída ZCast..."
             graphicPrefs.edit()
                 .putString("source_a", sourceInput.text.toString().trim())
@@ -1575,6 +1604,7 @@ class MainActivity : AppCompatActivity() {
                 exo.playWhenReady = true
             }.onFailure {
                 liveSourceSwitchPending = false
+                sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
                 stopRtmpVideoTest(startLiveButton,
                     "CORTE: falha ao abrir fonte $source. Teste ZCast encerrado.")
             }
@@ -1593,6 +1623,7 @@ class MainActivity : AppCompatActivity() {
             .apply()
         activeSource = source
         activeSourceLabel.text = "FONTE ATIVA: $source"
+        quickSourceLabel.text = "FONTE SELECIONADA: $source"
         status.text = "FONTE $source selecionada. Carregando prévia..."
         loadPreview()
     }
@@ -1629,6 +1660,8 @@ class MainActivity : AppCompatActivity() {
                     if (player !== exo) return
                     if (liveSourceSwitchPending && playbackState == Player.STATE_READY) {
                         liveSourceSwitchPending = false
+                        sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
+                        quickSourceLabel.text = "FONTE NO TESTE ZCAST: $activeSource"
                         activeSourceLabel.text = "FONTE RTMP ATIVA: $activeSource"
                         status.text = "CORTE: fonte $activeSource reproduzindo. Confira áudio e imagem no ZCast."
                     }
@@ -1651,6 +1684,7 @@ class MainActivity : AppCompatActivity() {
                     if (player !== exo || previewGeneration != generation) return
                     if (rtmpVideoTestSession != null && !rtmpClosing) {
                         liveSourceSwitchPending = false
+                        sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
                         stopRtmpVideoTest(startLiveButton,
                             "FONTE M3U8: falha na reprodução (${error.errorCodeName}). Teste interrompido.")
                         return
@@ -1728,6 +1762,7 @@ class MainActivity : AppCompatActivity() {
         rtmpClosing = false
         rtmpConnecting = false
         liveSourceSwitchPending = false
+        sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
         rtmpAttemptId++
         clipPipeline?.close()
         clipPipeline = null
@@ -1740,6 +1775,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
         previewGeneration++
         previewRetryHandler.removeCallbacksAndMessages(null)
         stopBroadcastMonitor()
