@@ -411,13 +411,13 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(publishTestButton)
 
-        val videoPublishTestButton = button("TESTAR VÍDEO RTMP NO ZCAST (5S, SEM ÁUDIO)")
+        val videoPublishTestButton = button("TESTAR VÍDEO + ÁUDIO RTMP NO ZCAST (5S)")
         videoPublishTestButton.setOnClickListener {
             AlertDialog.Builder(this)
                 .setTitle("Enviar vídeo para o canal de testes?")
                 .setMessage(
-                    "O aplicativo enviará 5 segundos de vídeo com logo e letreiro ao SEGUNDO canal ZCast. " +
-                    "Não haverá áudio. Esta operação usa sua chave RTMP e pode ativar temporariamente o canal de teste. " +
+                    "O aplicativo tentará enviar 5 segundos de vídeo com logo, letreiro e áudio real do M3U8 ao SEGUNDO canal ZCast. " +
+                    "Esta operação usa sua chave RTMP e pode ativar temporariamente o canal de teste. " +
                     "Não utiliza o RTMP da Rede Novelas principal."
                 )
                 .setNegativeButton("CANCELAR", null)
@@ -450,7 +450,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(stopLiveButton)
 
         val liveInfo = TextView(this).apply {
-            text = "TRANSMISSÃO CONTÍNUA INDISPONÍVEL. O teste de 5 segundos envia somente vídeo ao segundo canal ZCast; o áudio real ainda não está integrado."
+            text = "TRANSMISSÃO CONTÍNUA INDISPONÍVEL. O teste de 5 segundos tenta enviar vídeo e áudio AAC reais ao segundo canal ZCast; sincronização contínua ainda experimental."
             textSize = 12f
             setTextColor(Color.rgb(90, 60, 20))
             setPadding(dp(8), dp(8), dp(8), dp(8))
@@ -458,7 +458,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(liveInfo)
 
         val warning = TextView(this).apply {
-            text = "IMPORTANTE: somente o botão de teste envia vídeo por RTMP durante 5 segundos ao canal de testes ZCast. " +
+            text = "IMPORTANTE: somente o botão de teste envia áudio/vídeo por RTMP durante 5 segundos ao canal de testes ZCast. " +
                 "A próxima etapa é integrar codificação H.264/AAC e composição real dos gráficos. " +
                 "Não use a mesma entrada M3U8 e a mesma saída do canal sem confirmar com a Vox: isso pode criar um loop ou interromper a transmissão."
             textSize = 11f
@@ -469,7 +469,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.15 • CORREÇÃO DA LOGO NA SAÍDA RTMP • REDE NOVELAS"
+            text = "VERSÃO 0.16 • TESTE RTMP VÍDEO + ÁUDIO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -748,6 +748,13 @@ class MainActivity : AppCompatActivity() {
             status.text = "TESTE RTMP: dados de saída inválidos."
             return
         }
+        val pcm = pcmTap.snapshot()
+        if (pcm.bytes == 0L || pcm.encoding != android.media.AudioFormat.ENCODING_PCM_16BIT ||
+            pcm.sampleRate !in listOf(32000, 44100, 48000) || pcm.channels !in 1..2
+        ) {
+            status.text = "TESTE RTMP: áudio real ainda indisponível. Reproduza o M3U8 com som e teste novamente."
+            return
+        }
         rtmpVideoTestRunning = true
         button.isEnabled = false
         status.text = "TESTE RTMP: autorizando segundo canal..."
@@ -778,6 +785,7 @@ class MainActivity : AppCompatActivity() {
                                 transport = transport,
                                 publishedStreamId = streamId,
                                 bitrate = 1_600_000,
+                                audioTap = pcmTap,
                                 onError = { error ->
                                     if (rtmpVideoTestSession != null) {
                                         stopRtmpVideoTest(button,
@@ -793,12 +801,12 @@ class MainActivity : AppCompatActivity() {
                             session.start(
                                 bitmap, overlayLabel.text.toString(), tickerLabel.text.toString()
                             )
-                            status.text = "TESTE RTMP: enviando 5 segundos de vídeo SEM ÁUDIO..."
+                            status.text = "TESTE RTMP: enviando vídeo + áudio AAC por 5 segundos..."
                             android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
                                 if (rtmpVideoTestSession === session) {
                                     stopRtmpVideoTest(
                                         button,
-                                        "TESTE RTMP: envio de vídeo de 5s encerrado. Verifique o SEGUNDO canal ZCast."
+                                        "TESTE RTMP: áudio e vídeo de 5s encerrados. Verifique a imagem e o som no SEGUNDO canal ZCast."
                                     )
                                 }
                             }, 5000L)
@@ -833,12 +841,13 @@ class MainActivity : AppCompatActivity() {
             return
         }
         session.stopWhenClosed {
+            val audioPackets = session.audioPacketCount
             rtmpVideoTestTransport?.close()
             rtmpVideoTestTransport = null
             rtmpVideoTestRunning = false
             if (!isFinishing && !isDestroyed) {
                 button.isEnabled = true
-                status.text = message
+                status.text = "$message Pacotes AAC enviados: $audioPackets."
             }
         }
     }
