@@ -981,7 +981,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.59 • VERIFICAÇÃO ANTES DE INICIAR RTMP • REDE NOVELAS"
+            text = "VERSÃO 0.60 • ERROS DE SESSÃO RTMP ISOLADOS • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1619,10 +1619,22 @@ class MainActivity : AppCompatActivity() {
                                 publishedStreamId = streamId,
                                 bitrate = 1_600_000,
                                 audioTap = pcmTap,
-                                onError = { error ->
-                                    if (rtmpVideoTestSession != null) {
-                                        stopRtmpVideoTest(button,
-                                            "TESTE RTMP: falha na codificação ou envio. Sessão encerrada.")
+                                onError = { _ ->
+                                    // O codificador pode sinalizar erro fora da thread UI.
+                                    // Ignorar erros atrasados de sessões já fechadas,
+                                    // para não encerrar uma transmissão nova por engano.
+                                    runOnUiThread {
+                                        if (attempt == rtmpAttemptId &&
+                                            rtmpVideoTestTransport === transport &&
+                                            rtmpVideoTestSession != null &&
+                                            rtmpVideoTestRunning && !rtmpClosing &&
+                                            !isFinishing && !isDestroyed
+                                        ) {
+                                            stopRtmpVideoTest(
+                                                button,
+                                                "TESTE RTMP: falha na codificação ou envio. Sessão encerrada."
+                                            )
+                                        }
                                     }
                                 }
                             )
