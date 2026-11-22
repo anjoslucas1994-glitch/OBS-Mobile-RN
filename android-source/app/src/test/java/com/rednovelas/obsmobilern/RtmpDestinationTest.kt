@@ -25,4 +25,19 @@ class RtmpDestinationTest {
     fun rejectsBlankKey() {
         RtmpDestination.parse("rtmp://example.test/live", "")
     }
+    @Test fun acceptsZCastStyleTokenSuffixWithoutChangingTcUrl() {
+        val destination = RtmpDestination.parse(
+            "rtmp://example.test:1935/redenovelas",
+            "canalteste?token=valor-ficticio"
+        )
+        assertEquals("redenovelas", destination.app)
+        assertEquals("canalteste?token=valor-ficticio", destination.streamName)
+        assertEquals("rtmp://example.test:1935/redenovelas", destination.tcUrl)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun rejectsIncompleteTokenQuery() {
+        RtmpDestination.parse("rtmp://example.test/live", "canalteste?")
+    }
+
 }
