@@ -62,7 +62,17 @@ class MainActivity : AppCompatActivity() {
     private var lastTestVideoPackets = 0L
     private var lastTestAudioPackets = 0
     private var lastTestDurationSeconds = 0L
-    private var lastTestEndReason = "Nenhum teste concluído nesta execução"
+    private var lastTestEndReason = "Nenhum teste concluído"
+
+    private fun restoreLastTestReport() {
+        // Apenas métricas e motivos internos: não grava links ou credenciais.
+        val prefs = getSharedPreferences("rn_local_test_report", MODE_PRIVATE)
+        lastTestVideoPackets = prefs.getLong("video_packets", 0L)
+        lastTestAudioPackets = prefs.getInt("audio_packets", 0)
+        lastTestDurationSeconds = prefs.getLong("duration_seconds", 0L)
+        lastTestEndReason = prefs.getString("end_reason", "Nenhum teste concluído")
+            ?: "Nenhum teste concluído"
+    }
 
     private fun rememberLastTest(session: HlsRtmpVideoSession?, reason: String) {
         if (session == null) return
@@ -72,6 +82,12 @@ class MainActivity : AppCompatActivity() {
             broadcastStartedAtMs) / 1000L).coerceAtLeast(0L)
         // Motivo interno pré-definido, sem URLs ou tokens.
         lastTestEndReason = reason
+        getSharedPreferences("rn_local_test_report", MODE_PRIVATE).edit()
+            .putLong("video_packets", lastTestVideoPackets)
+            .putInt("audio_packets", lastTestAudioPackets)
+            .putLong("duration_seconds", lastTestDurationSeconds)
+            .putString("end_reason", lastTestEndReason)
+            .apply()
     }
     private var hlsBufferingSinceMs = 0L
     private val previewRetryHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -128,6 +144,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         window.statusBarColor = Color.rgb(127, 16, 27)
         window.navigationBarColor = Color.rgb(127, 16, 27)
+        restoreLastTestReport()
         buildScreen()
     }
 
@@ -289,7 +306,7 @@ class MainActivity : AppCompatActivity() {
             // Nunca incluir link M3U8, endereço RTMP completo ou chave/token.
             // Os contadores são locais e não comprovam recepção no ZCast.
             val report = buildString {
-                appendLine("OBS MOBILE RN v0.56 — RELATÓRIO DE TESTE")
+                appendLine("OBS MOBILE RN v0.57 — RELATÓRIO DE TESTE")
                 appendLine("Saída: canal secundário ZCast (experimental)")
                 appendLine("Estado RTMP: " + when {
                     rtmpClosing -> "ENCERRANDO"
@@ -944,7 +961,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.56 • RELATÓRIO APÓS ENCERRAR O TESTE • REDE NOVELAS"
+            text = "VERSÃO 0.57 • RELATÓRIO PERSISTENTE DE TESTES • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
