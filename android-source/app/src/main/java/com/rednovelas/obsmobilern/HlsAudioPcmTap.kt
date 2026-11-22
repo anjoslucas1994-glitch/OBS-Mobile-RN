@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Cópia passiva dos quadros PCM que o ExoPlayer envia ao alto-falante.
- * Não captura microfone, não transmite à rede e não armazena áudio.
+ * Não captura microfone e não transmite por conta própria.
  * O limite protege contra excesso de CPU/memória durante a prévia.
  */
 internal class HlsAudioPcmTap {
@@ -25,6 +25,12 @@ internal class HlsAudioPcmTap {
 
     private val bytesSeen = AtomicLong(0L)
     private val buffersSeen = AtomicLong(0L)
+
+    @Volatile private var pcmConsumer: ((ByteArray) -> Unit)? = null
+
+    fun setPcmConsumer(consumer: ((ByteArray) -> Unit)?) {
+        pcmConsumer = consumer
+    }
 
     fun resetCounters() {
         bytesSeen.set(0L)
@@ -56,6 +62,14 @@ internal class HlsAudioPcmTap {
             // não alterar position/limit do áudio em reprodução.
             bytesSeen.addAndGet(buffer.remaining().toLong())
             buffersSeen.incrementAndGet()
+            val consumer = pcmConsumer
+            if (consumer != null && encoding == C.ENCODING_PCM_16BIT && buffer.hasRemaining()) {
+                // Copia os bytes antes de o Media3 reutilizar seu buffer.
+                // A callback só pode enfileirar; não pode codificar ou fazer rede.
+                val copy = ByteArray(buffer.remaining())
+                buffer.asReadOnlyBuffer().get(copy)
+                consumer(copy)
+            }
         }
     }
 }
