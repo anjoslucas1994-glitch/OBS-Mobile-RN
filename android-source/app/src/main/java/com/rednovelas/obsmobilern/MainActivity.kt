@@ -26,6 +26,7 @@ class MainActivity : AppCompatActivity() {
     private var rtmpVideoTestRunning = false
     private var rtmpLiveMode = false
     private var selectedScene = SceneMode.PROGRAMACAO
+    private var logoLayout = LogoLayout()
     private enum class SceneMode { PROGRAMACAO, SOMENTE_LOGO, TELA_LIMPA }
     private lateinit var startLiveButton: Button
     private lateinit var stopLiveButton: Button
@@ -401,6 +402,61 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(logoButton)
 
+        val logoControlsTitle = TextView(this).apply {
+            text = "POSIÇÃO E TAMANHO DA LOGO — SAÍDA RTMP"
+            textSize = 13f
+            setTextColor(gold)
+            setTypeface(null, android.graphics.Typeface.BOLD)
+            setPadding(0, dp(10), 0, dp(4))
+        }
+        root.addView(logoControlsTitle)
+
+        val corners = listOf(
+            "SUPERIOR DIREITO", "SUPERIOR ESQUERDO",
+            "INFERIOR DIREITO", "INFERIOR ESQUERDO"
+        )
+        val cornerValues = listOf(
+            LogoLayout.Corner.TOP_RIGHT, LogoLayout.Corner.TOP_LEFT,
+            LogoLayout.Corner.BOTTOM_RIGHT, LogoLayout.Corner.BOTTOM_LEFT
+        )
+        val logoPositionSpinner = Spinner(this).apply {
+            adapter = ArrayAdapter(this@MainActivity,
+                android.R.layout.simple_spinner_dropdown_item, corners)
+        }
+        logoPositionSpinner.onItemSelectedListener = object :
+            android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>?,
+                view: View?, position: Int, id: Long) {
+                logoLayout = logoLayout.copy(corner = cornerValues[position])
+                applySelectedSceneToPreview()
+                refreshActiveBroadcastGraphics()
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>?) = Unit
+        }
+        root.addView(logoPositionSpinner)
+
+        val logoSizeLabel = TextView(this).apply {
+            text = "TAMANHO DA LOGO: 25%"
+            setTextColor(red)
+            textSize = 12f
+        }
+        root.addView(logoSizeLabel)
+        val logoSizeControl = SeekBar(this).apply {
+            max = 27
+            progress = 17
+        }
+        logoSizeControl.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                logoLayout = logoLayout.copy(widthPercent = progress + 8)
+                logoSizeLabel.text = "TAMANHO DA LOGO: ${logoLayout.widthPercent}%"
+                applySelectedSceneToPreview()
+                refreshActiveBroadcastGraphics()
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        root.addView(logoSizeControl)
+
         val scenesTitle = TextView(this).apply {
             text = "MESA DE CENAS — TOQUE PARA CORTAR"
             setTextColor(gold)
@@ -631,7 +687,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.24 • ALERTA DE VÍDEO CONGELADO • REDE NOVELAS"
+            text = "VERSÃO 0.25 • POSIÇÃO E TAMANHO DA LOGO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -884,6 +940,17 @@ class MainActivity : AppCompatActivity() {
     private fun applySelectedSceneToPreview() {
         if (!::logoOverlay.isInitialized || !::overlayLabel.isInitialized ||
             !::tickerLabel.isInitialized) return
+        val gravity = when (logoLayout.corner) {
+            LogoLayout.Corner.TOP_LEFT -> Gravity.TOP or Gravity.START
+            LogoLayout.Corner.TOP_RIGHT -> Gravity.TOP or Gravity.END
+            LogoLayout.Corner.BOTTOM_LEFT -> Gravity.BOTTOM or Gravity.START
+            LogoLayout.Corner.BOTTOM_RIGHT -> Gravity.BOTTOM or Gravity.END
+        }
+        logoOverlay.layoutParams = FrameLayout.LayoutParams(
+            dp(logoLayout.widthPercent * 4),
+            dp(logoLayout.widthPercent * 3),
+            gravity
+        ).apply { setMargins(dp(8), dp(8), dp(8), dp(8)) }
         logoOverlay.visibility = if (selectedScene != SceneMode.TELA_LIMPA &&
             logoOverlay.drawable != null) View.VISIBLE else View.GONE
         overlayLabel.visibility = if (selectedScene == SceneMode.PROGRAMACAO &&
@@ -908,7 +975,8 @@ class MainActivity : AppCompatActivity() {
             session.updateGraphics(
                 currentSceneLogo(),
                 currentSceneLowerThird(),
-                currentSceneTicker()
+                currentSceneTicker(),
+                logoLayout
             )
         }.onFailure {
             status.text = "GRÁFICOS: imagem não atualizada; confira a logo selecionada."
@@ -1069,7 +1137,7 @@ class MainActivity : AppCompatActivity() {
                             session.setAudioMuted(rtmpAudioMuted)
                             session.setAudioVolumePercent(rtmpAudioVolumePercent)
                             session.start(
-                                bitmap, currentSceneLowerThird(), currentSceneTicker()
+                                bitmap, currentSceneLowerThird(), currentSceneTicker(), logoLayout
                             )
                             startBroadcastMonitor(session)
                             if (continuous) {
