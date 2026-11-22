@@ -36,6 +36,10 @@ class MainActivity : AppCompatActivity() {
     private val broadcastHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private var broadcastTick: Runnable? = null
     private var broadcastStartedAtMs = 0L
+    private fun keepScreenActive(active: Boolean) {
+        if (active) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
     private lateinit var videoPublishTestButton: Button
     private var encodedDiagnosticFrames = 0
     private lateinit var playerView: PlayerView
@@ -608,7 +612,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(volumeSlider)
 
         val liveInfo = TextView(this).apply {
-            text = "TRANSMISSÃO CONTÍNUA EXPERIMENTAL: apenas para o segundo canal ZCast, enquanto o aplicativo estiver aberto. Não altera o primeiro canal Vox. Pare antes de sair do aplicativo."
+            text = "TRANSMISSÃO CONTÍNUA EXPERIMENTAL: a tela fica ligada enquanto envia ao segundo canal ZCast, com o app em primeiro plano. Parar ou sair encerra o envio. A Vox principal não é alterada."
             textSize = 12f
             setTextColor(Color.rgb(90, 60, 20))
             setPadding(dp(8), dp(8), dp(8), dp(8))
@@ -627,7 +631,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.22 • MONITOR DE TRANSMISSÃO RTMP • REDE NOVELAS"
+            text = "VERSÃO 0.23 • ESTABILIDADE EM PRIMEIRO PLANO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -922,8 +926,9 @@ class MainActivity : AppCompatActivity() {
     private fun stopBroadcastMonitor() {
         broadcastTick?.let { broadcastHandler.removeCallbacks(it) }
         broadcastTick = null
+        keepScreenActive(false)
         if (::broadcastMonitor.isInitialized) {
-            broadcastMonitor.text = "FORA DO AR — ZCast de testes\\nSessão RTMP encerrada."
+            broadcastMonitor.text = "FORA DO AR — ZCast de testes\nSessão RTMP encerrada."
             broadcastMonitor.setTextColor(Color.DKGRAY)
         }
     }
@@ -931,6 +936,7 @@ class MainActivity : AppCompatActivity() {
     private fun startBroadcastMonitor(session: HlsRtmpVideoSession) {
         stopBroadcastMonitor()
         broadcastStartedAtMs = android.os.SystemClock.elapsedRealtime()
+        keepScreenActive(true)
         val tick = object : Runnable {
             override fun run() {
                 if (rtmpVideoTestSession !== session || !rtmpVideoTestRunning) return
@@ -942,9 +948,9 @@ class MainActivity : AppCompatActivity() {
                 val elapsed = String.format(java.util.Locale.ROOT,
                     "%02d:%02d:%02d", hours, minutes, rest)
                 broadcastMonitor.text =
-                    "RTMP ZCAST — SESSÃO ATIVA ($elapsed)\\n" +
+                    "RTMP ZCAST — SESSÃO ATIVA ($elapsed)\n" +
                     "H.264: ${session.videoPacketCount} quadros • " +
-                    "AAC: ${session.audioPacketCount} pacotes\\n" +
+                    "AAC: ${session.audioPacketCount} pacotes\n" +
                     "Áudio: ${if (session.isAudioMuted()) "MUDO" else "${rtmpAudioVolumePercent}%"}"
                 broadcastMonitor.setTextColor(red)
                 broadcastHandler.postDelayed(this, 1000L)
