@@ -31,6 +31,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var stopLiveButton: Button
     private lateinit var muteRtmpButton: Button
     private var rtmpAudioMuted = false
+    private var rtmpAudioVolumePercent = 100
     private lateinit var videoPublishTestButton: Button
     private var encodedDiagnosticFrames = 0
     private lateinit var playerView: PlayerView
@@ -570,6 +571,28 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(muteRtmpButton)
 
+        val volumeLabel = TextView(this).apply {
+            text = "VOLUME DO CANAL ZCAST: 100%"
+            textSize = 12f
+            setTextColor(red)
+            setPadding(0, dp(8), 0, dp(3))
+        }
+        root.addView(volumeLabel)
+        val volumeSlider = SeekBar(this).apply {
+            max = 100
+            progress = rtmpAudioVolumePercent
+        }
+        volumeSlider.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                rtmpAudioVolumePercent = progress.coerceIn(0, 100)
+                volumeLabel.text = "VOLUME DO CANAL ZCAST: ${rtmpAudioVolumePercent}%"
+                rtmpVideoTestSession?.setAudioVolumePercent(rtmpAudioVolumePercent)
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+            override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+        })
+        root.addView(volumeSlider)
+
         val liveInfo = TextView(this).apply {
             text = "TRANSMISSÃO CONTÍNUA EXPERIMENTAL: apenas para o segundo canal ZCast, enquanto o aplicativo estiver aberto. Não altera o primeiro canal Vox. Pare antes de sair do aplicativo."
             textSize = 12f
@@ -590,7 +613,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.20 • MIXER DE ÁUDIO RTMP + CENAS • REDE NOVELAS"
+            text = "VERSÃO 0.21 • CONTROLE DE VOLUME RTMP • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -968,6 +991,7 @@ class MainActivity : AppCompatActivity() {
                             val bitmap = currentSceneLogo()
                             rtmpVideoTestSession = session
                             session.setAudioMuted(rtmpAudioMuted)
+                            session.setAudioVolumePercent(rtmpAudioVolumePercent)
                             session.start(
                                 bitmap, currentSceneLowerThird(), currentSceneTicker()
                             )
