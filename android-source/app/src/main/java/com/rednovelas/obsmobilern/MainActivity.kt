@@ -631,7 +631,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.23 • ESTABILIDADE EM PRIMEIRO PLANO • REDE NOVELAS"
+            text = "VERSÃO 0.24 • ALERTA DE VÍDEO CONGELADO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -938,21 +938,42 @@ class MainActivity : AppCompatActivity() {
         broadcastStartedAtMs = android.os.SystemClock.elapsedRealtime()
         keepScreenActive(true)
         val tick = object : Runnable {
+            private var previousVideoPackets = 0L
+            private var lastVideoProgressMs = android.os.SystemClock.elapsedRealtime()
             override fun run() {
                 if (rtmpVideoTestSession !== session || !rtmpVideoTestRunning) return
-                val seconds = ((android.os.SystemClock.elapsedRealtime() -
-                    broadcastStartedAtMs) / 1000).coerceAtLeast(0)
+                val now = android.os.SystemClock.elapsedRealtime()
+                val seconds = ((now - broadcastStartedAtMs) / 1000).coerceAtLeast(0)
+                val currentVideoPackets = session.videoPacketCount
+                if (currentVideoPackets > previousVideoPackets) {
+                    previousVideoPackets = currentVideoPackets
+                    lastVideoProgressMs = now
+                }
+                // Após dez segundos sem H.264, encerra o envio experimental.
+                // O contador mede a codificação/envio local, não o recebimento
+                // efetivo pelo público ou pelo player da ZCast.
+                if (rtmpLiveMode && seconds >= 12 &&
+                    now - lastVideoProgressMs >= 10_000L
+                ) {
+                    stopRtmpVideoTest(
+                        startLiveButton,
+                        "ALERTA: nenhum quadro H.264 enviado por 10 segundos. Transmissão de teste interrompida."
+                    )
+                    return
+                }
                 val hours = seconds / 3600
                 val minutes = (seconds % 3600) / 60
                 val rest = seconds % 60
                 val elapsed = String.format(java.util.Locale.ROOT,
                     "%02d:%02d:%02d", hours, minutes, rest)
+                val videoStatus = if (now - lastVideoProgressMs > 3_000L)
+                    "SEM QUADROS RECENTES" else "QUADROS ATIVOS"
                 broadcastMonitor.text =
                     "RTMP ZCAST — SESSÃO ATIVA ($elapsed)\n" +
-                    "H.264: ${session.videoPacketCount} quadros • " +
+                    "H.264: ${currentVideoPackets} quadros ($videoStatus) • " +
                     "AAC: ${session.audioPacketCount} pacotes\n" +
                     "Áudio: ${if (session.isAudioMuted()) "MUDO" else "${rtmpAudioVolumePercent}%"}"
-                broadcastMonitor.setTextColor(red)
+                broadcastMonitor.setTextColor(if (videoStatus == "QUADROS ATIVOS") red else gold)
                 broadcastHandler.postDelayed(this, 1000L)
             }
         }
