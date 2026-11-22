@@ -33,6 +33,8 @@ class MainActivity : AppCompatActivity() {
     private var logoLayout = LogoLayout()
     private var tickerSpeedPercent = 100
     private var tickerVisible = true
+    private var logoVisible = true
+    private lateinit var logoVisibilityButton: Button
     private lateinit var tickerVisibilityButton: Button
     private enum class SceneMode { PROGRAMACAO, SOMENTE_LOGO, TELA_LIMPA }
     private lateinit var startLiveButton: Button
@@ -517,6 +519,23 @@ class MainActivity : AppCompatActivity() {
         }
         root.addView(logoButton)
 
+        logoVisible = graphicPrefs.getBoolean("logo_visible", true)
+        logoVisibilityButton = button(if (logoVisible)
+            "OCULTAR LOGO DA TRANSMISSÃO"
+        else "MOSTRAR LOGO NA TRANSMISSÃO")
+        logoVisibilityButton.setOnClickListener {
+            logoVisible = !logoVisible
+            graphicPrefs.edit().putBoolean("logo_visible", logoVisible).apply()
+            logoVisibilityButton.text = if (logoVisible)
+                "OCULTAR LOGO DA TRANSMISSÃO"
+            else "MOSTRAR LOGO NA TRANSMISSÃO"
+            applySelectedSceneToPreview()
+            refreshActiveBroadcastGraphics()
+            status.text = if (logoVisible) "LOGO: visível nas cenas com marca." else
+                "LOGO: oculta; imagem preservada para reativar."
+        }
+        root.addView(logoVisibilityButton)
+
         val logoControlsTitle = TextView(this).apply {
             text = "POSIÇÃO E TAMANHO DA LOGO — SAÍDA RTMP"
             textSize = 13f
@@ -802,7 +821,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.34 • RECONECTAR PRÉVIA M3U8 • REDE NOVELAS"
+            text = "VERSÃO 0.35 • LIGAR/DESLIGAR LOGO AO VIVO • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1066,7 +1085,7 @@ class MainActivity : AppCompatActivity() {
             dp(logoLayout.widthPercent * 3),
             gravity
         ).apply { setMargins(dp(8), dp(8), dp(8), dp(8)) }
-        logoOverlay.visibility = if (selectedScene != SceneMode.TELA_LIMPA &&
+        logoOverlay.visibility = if (logoVisible && selectedScene != SceneMode.TELA_LIMPA &&
             logoOverlay.drawable != null) View.VISIBLE else View.GONE
         overlayLabel.visibility = if (selectedScene == SceneMode.PROGRAMACAO &&
             overlayLabel.text.isNotBlank()) View.VISIBLE else View.GONE
@@ -1075,7 +1094,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun currentSceneLogo(): android.graphics.Bitmap? =
-        if (selectedScene == SceneMode.TELA_LIMPA) null else requireLogoBitmap()
+        if (!logoVisible || selectedScene == SceneMode.TELA_LIMPA) null else requireLogoBitmap()
 
     private fun currentSceneLowerThird(): String =
         if (selectedScene == SceneMode.PROGRAMACAO) overlayLabel.text.toString() else ""
