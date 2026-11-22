@@ -57,6 +57,7 @@ internal class HlsAacRtmpBridge(
     private var audioFlushCountAtCut = 0L
     private val audioPackets = AtomicInteger(0)
     private var thread: Thread? = null
+    private var activeConsumer: ((ByteArray) -> Unit)? = null
 
     /** Remove PCM ainda na fila antes de trocar a fonte HLS ao vivo.
      *  Não reinicia o codificador nem altera o relógio AAC.
@@ -106,6 +107,7 @@ internal class HlsAacRtmpBridge(
                 }
             }
         }
+        activeConsumer = consumer
         tap.setPcmConsumer(consumer)
         thread = Thread({
             val encoder = AacPcmEncoder(config.sampleRate, config.channels, 128_000)
@@ -154,7 +156,7 @@ internal class HlsAacRtmpBridge(
                     Handler(Looper.getMainLooper()).post { onError(error) }
                 }
             } finally {
-                tap.setPcmConsumer(null)
+                tap.clearPcmConsumerIfSame(consumer)
                 running.set(false)
                 encoder.close()
                 queuedPcm.clear()
@@ -167,7 +169,7 @@ internal class HlsAacRtmpBridge(
 
     override fun close() {
         running.set(false)
-        tap.setPcmConsumer(null)
+        activeConsumer?.let { tap.clearPcmConsumerIfSame(it) }
         queuedPcm.clear()
     }
 }
