@@ -299,6 +299,26 @@ class MainActivity : AppCompatActivity() {
             setPadding(dp(10), dp(10), dp(10), dp(10))
         }
         root.addView(broadcastMonitor)
+        val checkSourceButton = button("VERIFICAR VÍDEO E ÁUDIO DA FONTE (SEM RTMP)")
+        checkSourceButton.setOnClickListener {
+            val pcm = pcmTap.snapshot()
+            val videoReady = player?.playbackState == Player.STATE_READY &&
+                player?.isPlaying == true
+            val now = android.os.SystemClock.elapsedRealtime()
+            val freshAudio = pcm.lastBufferAtElapsedMs > 0L &&
+                now - pcm.lastBufferAtElapsedMs in 0L..3_000L
+            val supportedAudio = pcm.encoding == android.media.AudioFormat.ENCODING_PCM_16BIT &&
+                pcm.sampleRate in listOf(32000, 44100, 48000) &&
+                pcm.channels in 1..2
+            val videoText = if (videoReady) "REPRODUZINDO" else "NÃO CONFIRMADO"
+            val audioText = if (freshAudio && supportedAudio) "PCM RECENTE E COMPATÍVEL"
+                else "AUSENTE, ANTIGO OU INCOMPATÍVEL"
+            status.text = "TESTE LOCAL (SEM RTMP): VÍDEO $videoText • ÁUDIO $audioText. " +
+                if (videoReady && freshAudio && supportedAudio)
+                    "Fonte aparentemente pronta para um teste ZCast; recepção ainda não verificada."
+                else "Carregue a prévia M3U8 com som e tente novamente."
+        }
+        root.addView(checkSourceButton)
         val copyTestReportButton = button("COPIAR RELATÓRIO TÉCNICO (SEM CHAVES)")
         copyTestReportButton.setOnClickListener {
             val pcm = pcmTap.snapshot()
@@ -961,7 +981,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.57 • RELATÓRIO PERSISTENTE DE TESTES • REDE NOVELAS"
+            text = "VERSÃO 0.58 • CHECAGEM DE FONTE SEM TRANSMITIR • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
