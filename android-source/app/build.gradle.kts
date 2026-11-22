@@ -16,8 +16,8 @@ android {
         applicationId = "com.rednovelas.obsmobilern"
         minSdk = 23
         targetSdk = 35
-        versionCode = 22
-        versionName = "0.22.0-dev"
+        versionCode = 23
+        versionName = "0.23.0-dev"
     }
 }
 dependencies {
