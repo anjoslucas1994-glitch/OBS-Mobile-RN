@@ -890,7 +890,7 @@ class MainActivity : AppCompatActivity() {
         root.addView(warning)
 
         val footer = TextView(this).apply {
-            text = "VERSÃO 0.51 • CANCELAMENTO SEGURO DE DIAGNÓSTICOS • REDE NOVELAS"
+            text = "VERSÃO 0.52 • PROTEÇÃO DO CORTE A/B CONTRA ALARMES • REDE NOVELAS"
             textSize = 10f
             setTextColor(Color.GRAY)
             gravity = Gravity.CENTER
@@ -1328,6 +1328,12 @@ class MainActivity : AppCompatActivity() {
                     liveSourceSwitchPending = false
                     sourceSwitchPcmReady = false
                     sourceSwitchStage = "CORTE CONCLUÍDO LOCALMENTE"
+                    // A pausa de carregamento A/B não deve ser contada como
+                    // falha contínua do codificador após uma troca bem-sucedida.
+                    lastVideoProgressMs = now
+                    lastAudioProgressMs = now
+                    lowFpsSinceMs = 0L
+                    lowFpsWarning = false
                     successfulSourceCuts++
                     sourceSwitchTimeoutHandler.removeCallbacksAndMessages(null)
                     val cutDurationMs = now - sourceSwitchStartedAtMs
@@ -1352,7 +1358,7 @@ class MainActivity : AppCompatActivity() {
                     // O codificador tenta produzir até 15 FPS. Alertar apenas
                     // depois de vários segundos abaixo de 8 FPS, evitando
                     // alarmes por oscilações momentâneas ou início de sessão.
-                    if (seconds >= 15 && videoFps < 8.0) {
+                    if (!liveSourceSwitchPending && seconds >= 15 && videoFps < 8.0) {
                         if (lowFpsSinceMs == 0L) lowFpsSinceMs = now
                         lowFpsWarning = now - lowFpsSinceMs >= 10_000L
                     } else {
@@ -1363,7 +1369,7 @@ class MainActivity : AppCompatActivity() {
                 // Mudo e volume zero continuam codificando AAC silencioso.
                 // Esta verificação só acusa parada do fluxo de pacotes,
                 // não ausência de som no conteúdo original.
-                if (rtmpLiveMode && seconds >= 15 &&
+                if (rtmpLiveMode && !liveSourceSwitchPending && seconds >= 15 &&
                     now - lastAudioProgressMs >= 12_000L
                 ) {
                     stopRtmpVideoTest(
@@ -1375,7 +1381,7 @@ class MainActivity : AppCompatActivity() {
                 // Após dez segundos sem H.264, encerra o envio experimental.
                 // O contador mede a codificação/envio local, não o recebimento
                 // efetivo pelo público ou pelo player da ZCast.
-                if (rtmpLiveMode && seconds >= 12 &&
+                if (rtmpLiveMode && !liveSourceSwitchPending && seconds >= 12 &&
                     now - lastVideoProgressMs >= 10_000L
                 ) {
                     stopRtmpVideoTest(
